@@ -1,0 +1,13 @@
+# KAIA – Kinetic AI Agent
+# Python-Abhängigkeiten
+
+# LLM Provider
+anthropic>=0.40.0
+mistralai>=1.0.0
+
+# UI
+streamlit>=1.40.0
+
+# Utilities
+python-dotenv>=1.0.0   # .env-Datei laden
+requests>=2.32.0       # Ollama HTTP-Calls
