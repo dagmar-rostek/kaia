@@ -85,6 +85,18 @@ class ProfileStore:
         profile.traits[trait] = round(alpha * value + (1 - alpha) * current, 3)
         self.save_profile(profile)
 
+    def find_by_name(self, name: str) -> UserProfile | None:
+        """
+        Sucht das zuletzt aktive Profil mit diesem Namen (case-insensitive).
+        Gibt None zurück wenn kein Profil gefunden wurde.
+        """
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE LOWER(name) = LOWER(?) ORDER BY updated_at DESC LIMIT 1",
+                (name,),
+            ).fetchone()
+        return self._row_to_profile(dict(row)) if row else None
+
     def list_profiles(self) -> list[dict]:
         """Gibt eine Kurzübersicht aller Profile zurück."""
         with get_connection(self._db_path) as conn:

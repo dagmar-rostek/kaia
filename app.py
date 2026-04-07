@@ -57,13 +57,27 @@ with st.sidebar:
     name    = st.text_input("Your name", placeholder="e.g. Dagmar")
     context = st.text_input("What are you working on?", placeholder="e.g. studying for my thesis")
 
+    # Zeige Hinweis wenn Nutzer bereits bekannt ist
+    if name:
+        existing = store.find_by_name(name)
+        if existing:
+            st.caption(f"Willkommen zurück, {existing.name} — Session {existing.session_count + 1}.")
+
     if st.button("Start session", type="primary", use_container_width=True):
         if not name:
             st.error("Please enter your name.")
         else:
             try:
-                # Create profile and provider
-                profile  = store.create_profile(name=name, context=context)
+                # Wiederkehrenden Nutzer erkennen — sonst neues Profil anlegen
+                profile = store.find_by_name(name)
+                if profile:
+                    # Kontext aktualisieren falls neu eingegeben
+                    if context and context != profile.context:
+                        profile.context = context
+                        store.save_profile(profile)
+                else:
+                    profile = store.create_profile(name=name, context=context)
+
                 provider = get_provider(provider_name)
                 session  = store.start_session(profile, provider.name, provider.model)
 
@@ -71,7 +85,7 @@ with st.sidebar:
                 st.session_state.session  = session
                 st.session_state.provider = provider
                 st.session_state.messages = []
-                st.success(f"Session started with {provider_name}.")
+                st.success(f"Session {profile.session_count} gestartet mit {provider_name}.")
             except Exception as e:
                 st.error(f"Could not start session: {e}")
 
