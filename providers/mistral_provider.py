@@ -10,7 +10,7 @@ Liest MISTRAL_API_KEY aus der .env-Datei.
 
 import os
 import time
-from mistralai import Mistral
+from mistralai.client import Mistral
 from .base import LLMProvider, Message, LLMResponse
 
 

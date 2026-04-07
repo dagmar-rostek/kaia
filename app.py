@@ -8,7 +8,7 @@ Run with: streamlit run app.py
 import streamlit as st
 from dotenv import load_dotenv
 from providers import get_provider, Message
-from core import ProfileStore, NeuroadaptiveMode
+from core import ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode
 
 load_dotenv()
 
@@ -22,6 +22,8 @@ st.set_page_config(
 # ── Session state defaults ─────────────────────────────────────────────────────
 if "store"    not in st.session_state:
     st.session_state.store = ProfileStore()
+if "memory"   not in st.session_state:
+    st.session_state.memory = MemoryStore()
 if "profile"  not in st.session_state:
     st.session_state.profile = None
 if "session"  not in st.session_state:
@@ -31,7 +33,8 @@ if "messages" not in st.session_state:
 if "provider" not in st.session_state:
     st.session_state.provider = None
 
-store = st.session_state.store
+store  = st.session_state.store
+memory = st.session_state.memory
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.title("✦ KAIA")
@@ -82,8 +85,17 @@ with st.sidebar:
         st.caption(f"**Sessions:** {p.session_count}")
 
         if st.button("End session", use_container_width=True):
-            if st.session_state.session:
-                store.close_session(st.session_state.session, p)
+            if st.session_state.session and st.session_state.provider:
+                with st.spinner("KAIA reflektiert die Session..."):
+                    # Session schließen
+                    store.close_session(st.session_state.session, p)
+                    # Gedächtnis aufbauen: Session analysieren und Observations speichern
+                    analyzer = SessionAnalyzer(memory)
+                    analyzer.analyze_and_save(
+                        session=st.session_state.session,
+                        profile=p,
+                        provider=st.session_state.provider,
+                    )
             st.session_state.profile  = None
             st.session_state.session  = None
             st.session_state.provider = None
@@ -116,7 +128,8 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     history = [Message(role=m["role"], content=m["content"]) for m in st.session_state.messages]
 
-    # System prompt (minimal for now — will be replaced by Prompt Builder)
+    # System prompt — angereichert mit personalisierten Gedächtnis-Kontext
+    memory_context = memory.build_memory_context(profile.user_id)
     system_prompt = f"""You are KAIA — a Kinetic AI Agent.
 You are an empathic learning companion. Your role is not to lecture,
 but to guide the learner to discover answers themselves through thoughtful questions.
@@ -124,6 +137,8 @@ but to guide the learner to discover answers themselves through thoughtful quest
 Learner name: {profile.name}
 Context: {profile.context or 'general learning'}
 Current mode: {profile.current_mode.value}
+
+{memory_context}
 
 Be warm, curious, and encouraging. Ask one good question rather than giving long explanations.
 Respond in the same language the learner uses."""

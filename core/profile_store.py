@@ -1,24 +1,20 @@
 """
 KAIA – Kinetic AI Agent
-Profile Store — JSON-based persistence layer.
+Profile Store — SQLite-basierter Persistenzlayer.
 
-MVP decision: JSON files per user, stored locally.
-One file per user profile, one file per session.
-No database setup required, runs on any machine.
+Ersetzt den früheren JSON-basierten Store.
+Die öffentliche API (create_profile, start_session, add_message, etc.)
+ist identisch geblieben — app.py und Provider-Schicht bleiben unverändert.
 
-GDPR note: All data stays local. The data/ directory
-is excluded from version control via .gitignore.
-
-Migration path to SQLite: replace load/save methods only.
-All callers remain unchanged.
+DSGVO: Alle Daten bleiben lokal in data/kaia.db.
+Die data/-Directory ist via .gitignore ausgeschlossen.
 """
 
-import json
 import uuid
-from pathlib import Path
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from pathlib import Path
 
+from .db import init_db, get_connection, json_encode, json_decode
 from .models import (
     UserProfile,
     SessionRecord,
@@ -26,41 +22,29 @@ from .models import (
     LearningStyle,
     PersonalitySnapshot,
 )
+from dataclasses import asdict
 
 
 class ProfileStore:
     """
-    Reads and writes user profiles and session records.
+    Liest und schreibt Nutzerprofile und Session-Records via SQLite.
 
-    Directory layout:
-        data/
-        ├── profiles/
-        │   └── {user_id}.json      ← one file per user
-        └── sessions/
-            └── {session_id}.json   ← one file per session
+    Öffentliche API ist kompatibel mit dem früheren JSON-basierten Store.
     """
 
-    def __init__(self, data_dir: str = "data"):
-        self.profiles_dir = Path(data_dir) / "profiles"
-        self.sessions_dir = Path(data_dir) / "sessions"
-        self.profiles_dir.mkdir(parents=True, exist_ok=True)
-        self.sessions_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, db_path: Path = Path("data") / "kaia.db"):
+        self._db_path = db_path
+        init_db(db_path)
 
     # ── User Profiles ──────────────────────────────────────────────────────────
 
     def create_profile(self, name: str = "", context: str = "") -> UserProfile:
-        """
-        Creates and persists a new user profile.
-
-        Args:
-            name:    User's name (optional, for personalization)
-            context: What the user is working on, e.g. "studying for exams"
-
-        Returns:
-            Newly created UserProfile with a unique ID.
-        """
+        """Erstellt ein neues Nutzerprofil und persistiert es."""
+        now = datetime.now().isoformat()
         profile = UserProfile(
             user_id=str(uuid.uuid4()),
+            created_at=now,
+            updated_at=now,
             name=name,
             context=context,
         )
@@ -68,29 +52,24 @@ class ProfileStore:
         return profile
 
     def load_profile(self, user_id: str) -> UserProfile:
-        """
-        Loads a profile by user ID.
+        """Lädt ein Profil anhand der user_id."""
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE user_id = ?", (user_id,)
+            ).fetchone()
 
-        Raises:
-            FileNotFoundError: If no profile exists for this user_id.
-        """
-        path = self.profiles_dir / f"{user_id}.json"
-        if not path.exists():
+        if row is None:
             raise FileNotFoundError(f"No profile found for user_id: {user_id}")
 
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return self._dict_to_profile(data)
+        return self._row_to_profile(dict(row))
 
     def save_profile(self, profile: UserProfile) -> None:
-        """Persists an updated profile to disk."""
+        """Persistiert ein aktualisiertes Profil."""
         profile.updated_at = datetime.now().isoformat()
         self._save_profile(profile)
 
     def update_mode(self, profile: UserProfile, mode: NeuroadaptiveMode) -> None:
-        """
-        Updates the user's current neuroadaptive mode and appends a snapshot.
-        Called after each state detection cycle.
-        """
+        """Aktualisiert den neuroadaptiven Modus und hängt einen Snapshot an."""
         snapshot = PersonalitySnapshot(mode=mode)
         profile.current_mode = mode
         profile.snapshots.append(asdict(snapshot))
@@ -98,53 +77,37 @@ class ProfileStore:
 
     def update_trait(self, profile: UserProfile, trait: str, value: float) -> None:
         """
-        Updates a single personality trait value (0.0 to 1.0).
-
-        Uses exponential moving average to avoid overreacting
-        to a single session — the profile evolves gradually.
+        Aktualisiert einen Persönlichkeitstrait via Exponential Moving Average.
+        alpha=0.3: 30% neuer Wert, 70% bisherige Geschichte.
         """
         current = profile.traits.get(trait, 0.5)
-        alpha = 0.3   # learning rate: 30% new, 70% history
+        alpha = 0.3
         profile.traits[trait] = round(alpha * value + (1 - alpha) * current, 3)
         self.save_profile(profile)
 
     def list_profiles(self) -> list[dict]:
-        """Returns a summary list of all profiles (id + name + last updated)."""
-        summaries = []
-        for path in self.profiles_dir.glob("*.json"):
-            data = json.loads(path.read_text(encoding="utf-8"))
-            summaries.append({
-                "user_id":    data.get("user_id"),
-                "name":       data.get("name", "—"),
-                "updated_at": data.get("updated_at"),
-                "sessions":   data.get("session_count", 0),
-            })
-        return sorted(summaries, key=lambda x: x["updated_at"], reverse=True)
+        """Gibt eine Kurzübersicht aller Profile zurück."""
+        with get_connection(self._db_path) as conn:
+            rows = conn.execute(
+                "SELECT user_id, name, updated_at, session_count FROM users ORDER BY updated_at DESC"
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     # ── Sessions ───────────────────────────────────────────────────────────────
 
     def start_session(self, profile: UserProfile, provider: str, model: str) -> SessionRecord:
-        """
-        Opens a new session record and links it to the user profile.
-
-        Args:
-            profile:  The active user profile.
-            provider: LLM provider name ("claude", "mistral", "ollama")
-            model:    Exact model identifier for evaluation logging.
-
-        Returns:
-            A new SessionRecord, already persisted.
-        """
+        """Öffnet eine neue Session und verknüpft sie mit dem Nutzerprofil."""
+        now = datetime.now().isoformat()
         session = SessionRecord(
             session_id=str(uuid.uuid4()),
             user_id=profile.user_id,
             provider=provider,
             model=model,
+            started_at=now,
             mode_at_start=profile.current_mode,
         )
         self._save_session(session)
 
-        # Update profile counters
         profile.session_count += 1
         self.save_profile(profile)
 
@@ -158,10 +121,7 @@ class ProfileStore:
         tokens: int = 0,
         latency_ms: float = 0.0,
     ) -> None:
-        """
-        Appends a message to the session record.
-        Keeps running totals for evaluation metrics.
-        """
+        """Hängt eine Nachricht an die Session und aktualisiert Metriken."""
         session.messages.append({
             "role":       role,
             "content":    content,
@@ -172,7 +132,6 @@ class ProfileStore:
         session.message_count += 1
         session.total_tokens += tokens
 
-        # Update rolling average latency
         if latency_ms > 0:
             n = session.message_count
             session.avg_latency_ms = round(
@@ -182,7 +141,7 @@ class ProfileStore:
         self._save_session(session)
 
     def close_session(self, session: SessionRecord, profile: UserProfile) -> None:
-        """Marks the session as ended and updates the profile's message count."""
+        """Schließt eine Session und aktualisiert das Profil."""
         session.ended_at = datetime.now().isoformat()
         session.mode_at_end = profile.current_mode
         profile.total_messages += session.message_count
@@ -190,36 +149,122 @@ class ProfileStore:
         self.save_profile(profile)
 
     def load_session(self, session_id: str) -> SessionRecord:
-        """Loads a session record by ID."""
-        path = self.sessions_dir / f"{session_id}.json"
-        if not path.exists():
+        """Lädt einen Session-Record anhand der session_id."""
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
+            ).fetchone()
+
+        if row is None:
             raise FileNotFoundError(f"No session found: {session_id}")
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return self._dict_to_session(data)
+
+        return self._row_to_session(dict(row))
 
     # ── Private helpers ────────────────────────────────────────────────────────
 
     def _save_profile(self, profile: UserProfile) -> None:
-        path = self.profiles_dir / f"{profile.user_id}.json"
-        path.write_text(
-            json.dumps(asdict(profile), indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO users
+                    (user_id, name, context, current_mode, dominant_style,
+                     traits, snapshots, session_count, total_messages,
+                     identified_strengths, identified_blind_spots,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    name                   = excluded.name,
+                    context                = excluded.context,
+                    current_mode           = excluded.current_mode,
+                    dominant_style         = excluded.dominant_style,
+                    traits                 = excluded.traits,
+                    snapshots              = excluded.snapshots,
+                    session_count          = excluded.session_count,
+                    total_messages         = excluded.total_messages,
+                    identified_strengths   = excluded.identified_strengths,
+                    identified_blind_spots = excluded.identified_blind_spots,
+                    updated_at             = excluded.updated_at
+                """,
+                (
+                    profile.user_id,
+                    profile.name,
+                    profile.context,
+                    profile.current_mode.value,
+                    profile.dominant_style.value if profile.dominant_style else None,
+                    json_encode(profile.traits),
+                    json_encode(profile.snapshots),
+                    profile.session_count,
+                    profile.total_messages,
+                    json_encode(profile.identified_strengths),
+                    json_encode(profile.identified_blind_spots),
+                    profile.created_at,
+                    profile.updated_at,
+                ),
+            )
 
     def _save_session(self, session: SessionRecord) -> None:
-        path = self.sessions_dir / f"{session.session_id}.json"
-        path.write_text(
-            json.dumps(asdict(session), indent=2, ensure_ascii=False),
-            encoding="utf-8",
+        with get_connection(self._db_path) as conn:
+            conn.execute(
+                """
+                INSERT INTO sessions
+                    (session_id, user_id, provider, model,
+                     mode_at_start, mode_at_end, message_count,
+                     total_tokens, avg_latency_ms, messages,
+                     started_at, ended_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(session_id) DO UPDATE SET
+                    mode_at_end    = excluded.mode_at_end,
+                    message_count  = excluded.message_count,
+                    total_tokens   = excluded.total_tokens,
+                    avg_latency_ms = excluded.avg_latency_ms,
+                    messages       = excluded.messages,
+                    ended_at       = excluded.ended_at
+                """,
+                (
+                    session.session_id,
+                    session.user_id,
+                    session.provider,
+                    session.model,
+                    session.mode_at_start.value,
+                    session.mode_at_end.value,
+                    session.message_count,
+                    session.total_tokens,
+                    session.avg_latency_ms,
+                    json_encode(session.messages),
+                    session.started_at,
+                    session.ended_at,
+                ),
+            )
+
+    def _row_to_profile(self, row: dict) -> UserProfile:
+        return UserProfile(
+            user_id=row["user_id"],
+            name=row["name"],
+            context=row["context"],
+            current_mode=NeuroadaptiveMode(row["current_mode"]),
+            dominant_style=LearningStyle(row["dominant_style"]) if row["dominant_style"] else None,
+            traits=json_decode(row["traits"]) or {},
+            snapshots=json_decode(row["snapshots"]) or [],
+            session_count=row["session_count"],
+            total_messages=row["total_messages"],
+            identified_strengths=json_decode(row["identified_strengths"]) or [],
+            identified_blind_spots=json_decode(row["identified_blind_spots"]) or [],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
         )
 
-    def _dict_to_profile(self, data: dict) -> UserProfile:
-        data["current_mode"] = NeuroadaptiveMode(data.get("current_mode", "unknown"))
-        style = data.get("dominant_style")
-        data["dominant_style"] = LearningStyle(style) if style else None
-        return UserProfile(**data)
-
-    def _dict_to_session(self, data: dict) -> SessionRecord:
-        data["mode_at_start"] = NeuroadaptiveMode(data.get("mode_at_start", "unknown"))
-        data["mode_at_end"]   = NeuroadaptiveMode(data.get("mode_at_end", "unknown"))
-        return SessionRecord(**data)
+    def _row_to_session(self, row: dict) -> SessionRecord:
+        return SessionRecord(
+            session_id=row["session_id"],
+            user_id=row["user_id"],
+            provider=row["provider"],
+            model=row["model"],
+            started_at=row["started_at"],
+            ended_at=row["ended_at"],
+            mode_at_start=NeuroadaptiveMode(row["mode_at_start"]),
+            mode_at_end=NeuroadaptiveMode(row["mode_at_end"]),
+            message_count=row["message_count"],
+            total_tokens=row["total_tokens"],
+            avg_latency_ms=row["avg_latency_ms"],
+            messages=json_decode(row["messages"]) or [],
+        )

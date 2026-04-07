@@ -11,3 +11,7 @@ streamlit>=1.40.0
 # Utilities
 python-dotenv>=1.0.0   # .env-Datei laden
 requests>=2.32.0       # Ollama HTTP-Calls
+
+# Memory & Datenbank
+chromadb>=0.5.0                        # Lokale Vektor-DB für semantisches Gedächtnis
+sentence-transformers>=3.0.0           # Lokale Embeddings (kein API-Call nötig)

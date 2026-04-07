@@ -11,9 +11,13 @@ from .models import (
     LearningStyle,
 )
 from .profile_store import ProfileStore
+from .memory_store import MemoryStore
+from .session_analyzer import SessionAnalyzer
 
 __all__ = [
     "ProfileStore",
+    "MemoryStore",
+    "SessionAnalyzer",
     "UserProfile",
     "SessionRecord",
     "PersonalitySnapshot",

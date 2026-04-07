@@ -7,6 +7,10 @@ secrets.toml
 data/profiles/*.json
 data/sessions/
 data/logs/
+data/kaia.db
+data/kaia.db-wal
+data/kaia.db-shm
+data/chroma/
 
 # ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
