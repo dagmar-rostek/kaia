@@ -16,6 +16,13 @@ from voice import get_stt_provider, get_tts_provider, AVAILABLE_TTS_PROVIDERS
 
 load_dotenv()
 
+# Prüfen ob Whisper verfügbar ist (nur lokal, nicht in der Cloud)
+try:
+    import faster_whisper  # noqa: F401
+    WHISPER_AVAILABLE = True
+except ImportError:
+    WHISPER_AVAILABLE = False
+
 # DATA_DIR: lokal = "data/", Railway = "/app/data" (via Env-Variable)
 DATA_DIR    = Path(os.environ.get("DATA_DIR", "data"))
 DB_PATH     = DATA_DIR / "kaia.db"
@@ -70,8 +77,13 @@ with st.sidebar:
     # ── Voice-Modus Toggle ─────────────────────────────────────────────────────
     st.divider()
     st.subheader("Eingabe")
-    voice_mode = st.toggle("Spracheingabe aktivieren", value=st.session_state.voice_mode)
-    st.session_state.voice_mode = voice_mode
+    if not WHISPER_AVAILABLE:
+        st.caption("Spracheingabe nur lokal verfügbar.")
+        voice_mode = False
+        st.session_state.voice_mode = False
+    else:
+        voice_mode = st.toggle("Spracheingabe aktivieren", value=st.session_state.voice_mode)
+        st.session_state.voice_mode = voice_mode
 
     if voice_mode:
         st.caption("STT: Whisper (lokal · DSGVO ✓)")
