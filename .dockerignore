@@ -1,0 +1,26 @@
+# Nutzerdaten — nie ins Image
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Secrets
+.env
+*.key
+
+# Entwicklung
+.git/
+.gitignore
+*.md
+.DS_Store
+.idea/
+.vscode/
+
+# Tests
+test_*.py

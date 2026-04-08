@@ -5,6 +5,9 @@ Streamlit App — MVP Interface mit Text- und Spracheingabe
 Run with: streamlit run app.py
 """
 
+import os
+from pathlib import Path
+
 import streamlit as st
 from dotenv import load_dotenv
 from providers import get_provider, Message
@@ -12,6 +15,11 @@ from core import ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode
 from voice import get_stt_provider, get_tts_provider, AVAILABLE_TTS_PROVIDERS
 
 load_dotenv()
+
+# DATA_DIR: lokal = "data/", Railway = "/app/data" (via Env-Variable)
+DATA_DIR    = Path(os.environ.get("DATA_DIR", "data"))
+DB_PATH     = DATA_DIR / "kaia.db"
+CHROMA_PATH = DATA_DIR / "chroma"
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -22,9 +30,9 @@ st.set_page_config(
 
 # ── Session state defaults ─────────────────────────────────────────────────────
 if "store"        not in st.session_state:
-    st.session_state.store = ProfileStore()
+    st.session_state.store = ProfileStore(db_path=DB_PATH)
 if "memory"       not in st.session_state:
-    st.session_state.memory = MemoryStore()
+    st.session_state.memory = MemoryStore(chroma_path=CHROMA_PATH, db_path=DB_PATH)
 if "profile"      not in st.session_state:
     st.session_state.profile = None
 if "session"      not in st.session_state:

@@ -18,4 +18,6 @@ sentence-transformers>=3.0.0           # Lokale Embeddings (kein API-Call nötig
 
 # Voice
 faster-whisper>=1.0.0                  # Lokales STT — kein API-Call, DSGVO-konform
-requests>=2.32.0                       # TTS API-Calls (Voxtral, ElevenLabs)
+
+# HTTP (TTS API-Calls + Ollama)
+requests>=2.32.0
