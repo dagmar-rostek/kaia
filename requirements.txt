@@ -15,3 +15,7 @@ requests>=2.32.0       # Ollama HTTP-Calls
 # Memory & Datenbank
 chromadb>=0.5.0                        # Lokale Vektor-DB für semantisches Gedächtnis
 sentence-transformers>=3.0.0           # Lokale Embeddings (kein API-Call nötig)
+
+# Voice
+faster-whisper>=1.0.0                  # Lokales STT — kein API-Call, DSGVO-konform
+requests>=2.32.0                       # TTS API-Calls (Voxtral, ElevenLabs)
