@@ -4,7 +4,7 @@ TTS Provider: Voxtral (Mistral AI API)
 
 EU-gehostet, OpenAI-kompatibler Endpunkt.
 Kosten: $0.016 pro 1.000 Zeichen.
-Latenz: ~0.8s Time-to-First-Audio (PCM), ~3s (MP3).
+Stimmen werden live von der API geladen.
 
 Liest MISTRAL_API_KEY aus der .env-Datei.
 """
@@ -16,22 +16,9 @@ import requests
 from .tts_base import TTSProvider, SynthesisResult, VoiceInfo
 
 
-# 20 voreingestellte Voxtral-Stimmen (Stand: April 2026)
-_VOXTRAL_VOICES = [
-    VoiceInfo("river",   "River",   "en", "neutral",  "Warm and balanced"),
-    VoiceInfo("vale",    "Vale",    "en", "female",   "Clear and professional"),
-    VoiceInfo("luna",    "Luna",    "de", "female",   "Sanft und deutlich"),
-    VoiceInfo("felix",   "Felix",   "de", "male",     "Ruhig und präzise"),
-    VoiceInfo("aurora",  "Aurora",  "fr", "female",   "Douce et expressive"),
-    VoiceInfo("marco",   "Marco",   "it", "male",     "Energico e chiaro"),
-    VoiceInfo("sol",     "Sol",     "es", "neutral",  "Cálida y cercana"),
-    VoiceInfo("aria",    "Aria",    "en", "female",   "Expressive and warm"),
-    VoiceInfo("orion",   "Orion",   "en", "male",     "Deep and reassuring"),
-    VoiceInfo("nova",    "Nova",    "en", "female",   "Bright and energetic"),
-]
-
-_DEFAULT_VOICE = "luna"     # Deutsch, weiblich — passend für KAIA
-_API_URL = "https://api.mistral.ai/v1/audio/speech"
+_DEFAULT_VOICE = "en_paul_neutral"
+_API_URL       = "https://api.mistral.ai/v1/audio/speech"
+_VOICES_URL    = "https://api.mistral.ai/v1/audio/voices"
 
 
 class VoxtralTTSProvider(TTSProvider):
@@ -43,6 +30,7 @@ class VoxtralTTSProvider(TTSProvider):
         self._api_key = os.environ.get("MISTRAL_API_KEY", "")
         if not self._api_key:
             raise ValueError("MISTRAL_API_KEY nicht in .env gefunden.")
+        self._voices_cache: list[VoiceInfo] | None = None
 
     @property
     def name(self) -> str:
@@ -62,10 +50,6 @@ class VoxtralTTSProvider(TTSProvider):
         voice_id: str | None = None,
         language: str | None = None,
     ) -> SynthesisResult:
-        """
-        Sendet Text an Voxtral API und gibt Audio-Bytes zurück.
-        Format: MP3 (kompatibel mit st.audio()).
-        """
         voice = voice_id or self._default_voice
         start = time.time()
 
@@ -76,7 +60,7 @@ class VoxtralTTSProvider(TTSProvider):
                 "Content-Type": "application/json",
             },
             json={
-                "model": "voxtral-mini-tts",
+                "model": "voxtral-mini-tts-latest",
                 "input": text,
                 "voice": voice,
             },
@@ -96,6 +80,32 @@ class VoxtralTTSProvider(TTSProvider):
         )
 
     def list_voices(self, language: str | None = None) -> list[VoiceInfo]:
+        """Lädt Stimmen live von der Mistral API."""
+        if self._voices_cache is None:
+            try:
+                resp = requests.get(
+                    _VOICES_URL,
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                self._voices_cache = [
+                    VoiceInfo(
+                        voice_id=v["slug"],
+                        name=v["name"],
+                        language=v["languages"][0] if v["languages"] else "en",
+                        gender=v.get("gender"),
+                        description=", ".join(v.get("tags", [])),
+                    )
+                    for v in resp.json().get("items", [])
+                ]
+            except Exception:
+                self._voices_cache = [
+                    VoiceInfo(_DEFAULT_VOICE, "Paul - Neutral", "en_us", "male")
+                ]
+
         if language:
-            return [v for v in _VOXTRAL_VOICES if v.language == language]
-        return _VOXTRAL_VOICES
+            filtered = [v for v in self._voices_cache if language in v.language]
+            return filtered if filtered else self._voices_cache
+
+        return self._voices_cache
