@@ -205,7 +205,7 @@ if st.session_state.voice_mode:
                 try:
                     result = stt.transcribe(audio_bytes.read())
                     user_input = result.text
-                    st.caption(f"Erkannt: *„{user_input}"*")
+                    st.caption(f'Erkannt: *"{user_input}"*')
                 except Exception as e:
                     st.error(f"Spracherkennung fehlgeschlagen: {e}")
 else:
