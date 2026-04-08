@@ -3,12 +3,8 @@
 
 FROM python:3.11-slim
 
-# System-Dependencies
-# ffmpeg: für faster-whisper (Audio-Verarbeitung)
-# build-essential: für native Python-Pakete
+# System-Dependencies (minimal — kein PyTorch/Whisper in der Cloud)
 RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

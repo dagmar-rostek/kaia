@@ -1,0 +1,11 @@
+# KAIA – Kinetic AI Agent
+# Lokale Entwicklung — alle Dependencies inkl. Voice (PyTorch ~2GB)
+# Ausführen: pip install -r requirements-local.txt
+
+-r requirements.txt
+
+# Lokale Embeddings (sentence-transformers zieht PyTorch mit, ~2 GB)
+sentence-transformers>=3.0.0
+
+# Lokales STT — Whisper (kein API-Call, DSGVO-konform)
+faster-whisper>=1.0.0

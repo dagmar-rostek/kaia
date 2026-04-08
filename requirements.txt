@@ -1,5 +1,6 @@
 # KAIA – Kinetic AI Agent
-# Python-Abhängigkeiten
+# Cloud-Dependencies (Railway) — schlank, kein PyTorch
+# Für lokale Entwicklung: pip install -r requirements-local.txt
 
 # LLM Provider
 anthropic>=0.40.0
@@ -9,15 +10,9 @@ mistralai>=1.0.0
 streamlit>=1.40.0
 
 # Utilities
-python-dotenv>=1.0.0   # .env-Datei laden
-requests>=2.32.0       # Ollama HTTP-Calls
+python-dotenv>=1.0.0
+requests>=2.32.0
 
 # Memory & Datenbank
-chromadb>=0.5.0                        # Lokale Vektor-DB für semantisches Gedächtnis
-sentence-transformers>=3.0.0           # Lokale Embeddings (kein API-Call nötig)
-
-# Voice
-faster-whisper>=1.0.0                  # Lokales STT — kein API-Call, DSGVO-konform
-
-# HTTP (TTS API-Calls + Ollama)
-requests>=2.32.0
+# ChromaDB ohne sentence-transformers: nutzt eingebaute ONNX-Embeddings (kein torch)
+chromadb>=0.5.0
