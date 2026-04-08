@@ -25,11 +25,8 @@ COPY . .
 # Datenverzeichnis anlegen (wird als Railway Volume gemountet)
 RUN mkdir -p /app/data
 
-# Streamlit-Konfiguration: kein Browser-Öffnen, kein Telemetry
-RUN mkdir -p /app/.streamlit
-COPY .streamlit/config.toml /app/.streamlit/config.toml 2>/dev/null || \
-    printf '[server]\nheadless = true\nenableCORS = false\nenableXsrfProtection = false\n\n[browser]\ngatherUsageStats = false\n' \
-    > /app/.streamlit/config.toml
+# Streamlit-Konfiguration
+COPY .streamlit/config.toml /app/.streamlit/config.toml
 
 # Port den Railway erwartet
 EXPOSE 8501
