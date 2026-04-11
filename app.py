@@ -132,7 +132,10 @@ with st.sidebar:
             index=0 if st.session_state.theme == "dark" else 1,
             horizontal=True,
         )
-        st.session_state.theme = "dark" if theme_choice == theme_dark_label else "light"
+        new_theme = "dark" if theme_choice == theme_dark_label else "light"
+        if new_theme != st.session_state.theme:
+            st.session_state.theme = new_theme
+            st.rerun()
 
     st.header(t("setup_header", lang))
 
