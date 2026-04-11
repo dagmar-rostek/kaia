@@ -12,9 +12,9 @@ import streamlit as st
 from dotenv import load_dotenv
 from providers import get_provider, Message
 from core import (ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode,
-                  t, build_system_prompt, SurveyStore,
-                  GSE_ITEMS_DE, GSE_ITEMS_EN, PSI_ITEMS_DE, PSI_ITEMS_EN,
-                  GSE_SCALE_DE, GSE_SCALE_EN, PSI_SCALE_DE, PSI_SCALE_EN)
+                  t, build_system_prompt, build_onboarding_prompt, SurveyStore,
+                  GSE_ITEMS_DE, GSE_ITEMS_EN,
+                  GSE_SCALE_DE, GSE_SCALE_EN)
 from voice import get_stt_provider, get_tts_provider, AVAILABLE_TTS_PROVIDERS
 
 load_dotenv()
@@ -69,8 +69,14 @@ if "theme"          not in st.session_state:
     st.session_state.theme = "dark"
 if "consent_given"  not in st.session_state:
     st.session_state.consent_given = False
-if "survey_store"   not in st.session_state:
+if "survey_store"         not in st.session_state:
     st.session_state.survey_store = None
+if "onboarding_started"   not in st.session_state:
+    st.session_state.onboarding_started = False
+if "show_post_first_gse"  not in st.session_state:
+    st.session_state.show_post_first_gse = False
+if "post_gse_user_id"     not in st.session_state:
+    st.session_state.post_gse_user_id = None
 
 store  = st.session_state.store
 memory = st.session_state.memory
@@ -257,6 +263,7 @@ with st.sidebar:
             st.caption(f"{t('profile_tts', lang)} {st.session_state.tts_provider.name}")
 
         if st.button(t("end_button", lang), use_container_width=True):
+            is_first_session = (p.session_count == 1)
             if st.session_state.session and st.session_state.provider:
                 with st.spinner(t("end_spinner", lang)):
                     store.close_session(st.session_state.session, p)
@@ -266,81 +273,106 @@ with st.sidebar:
                         profile=p,
                         provider=st.session_state.provider,
                     )
-            st.session_state.profile      = None
-            st.session_state.session      = None
-            st.session_state.provider     = None
-            st.session_state.stt_provider = None
-            st.session_state.tts_provider = None
-            st.session_state.messages     = []
-            st.session_state.kaia_state   = "ready"
+            # Nach erster Session: GSE-Fragebogen zeigen
+            if is_first_session and not st.session_state.survey_store.has_survey(
+                p.user_id, "gse", "pre"
+            ):
+                st.session_state.show_post_first_gse = True
+                st.session_state.post_gse_user_id    = p.user_id
+            st.session_state.profile            = None
+            st.session_state.session            = None
+            st.session_state.provider           = None
+            st.session_state.stt_provider       = None
+            st.session_state.tts_provider       = None
+            st.session_state.messages           = []
+            st.session_state.kaia_state         = "ready"
+            st.session_state.onboarding_started = False
             st.rerun()
 
 # ── Kein Profil ────────────────────────────────────────────────────────────────
 if not st.session_state.profile:
+    # GSE nach erster Session — erscheint einmalig nach dem ersten Gespräch
+    if st.session_state.show_post_first_gse and st.session_state.post_gse_user_id:
+        survey_store = st.session_state.survey_store
+        gse_user_id  = st.session_state.post_gse_user_id
+
+        st.title(t("survey_gse_title", lang))
+        st.info(
+            "Danke für dein erstes Gespräch mit KAIA! "
+            "Bevor du gehst, bitten wir dich, einen kurzen Fragebogen zur allgemeinen Selbstwirksamkeit auszufüllen (ca. 2 Minuten). "
+            "Deine Antworten bilden die wissenschaftliche Baseline für die Studie."
+            if lang == "de" else
+            "Thank you for your first conversation with KAIA! "
+            "Before you go, please fill in a short questionnaire on general self-efficacy (about 2 minutes). "
+            "Your answers form the scientific baseline for the study."
+        )
+        st.caption(t("survey_gse_info", lang))
+
+        gse_items = GSE_ITEMS_DE if lang == "de" else GSE_ITEMS_EN
+        gse_scale = GSE_SCALE_DE if lang == "de" else GSE_SCALE_EN
+
+        with st.form("post_first_gse_form"):
+            gse_responses = {}
+            for i, item in enumerate(gse_items):
+                gse_responses[i] = st.radio(
+                    f"{i+1}. {item}",
+                    options=list(gse_scale.keys()),
+                    format_func=lambda x, s=gse_scale: s[x],
+                    index=None,
+                    horizontal=True,
+                    key=f"gse_{i}",
+                )
+            submitted = st.form_submit_button(
+                t("survey_submit", lang), type="primary", use_container_width=True
+            )
+
+        if submitted:
+            if any(v is None for v in gse_responses.values()):
+                st.error(t("survey_error", lang))
+            else:
+                survey_store.save_survey(gse_user_id, "gse", "pre", gse_responses)
+                st.success(t("survey_done", lang))
+                st.session_state.show_post_first_gse = False
+                st.session_state.post_gse_user_id    = None
+                st.rerun()
+        st.stop()
+
     st.info(t("no_profile_info", lang))
     st.stop()
-
-# ── Baseline-Messung (Pre-Survey) ──────────────────────────────────────────────
-# Erscheint einmalig vor dem ersten Gespräch — GSE + PSI als Pflichtmessung
 
 survey_store = st.session_state.survey_store
 profile      = st.session_state.profile
 
-if not survey_store.has_pre_surveys(profile.user_id):
-    st.title(t("survey_title", lang))
-    st.info(t("survey_intro", lang))
-
-    gse_items  = GSE_ITEMS_DE  if lang == "de" else GSE_ITEMS_EN
-    gse_scale  = GSE_SCALE_DE  if lang == "de" else GSE_SCALE_EN
-    psi_items  = PSI_ITEMS_DE  if lang == "de" else PSI_ITEMS_EN
-    psi_scale  = PSI_SCALE_DE  if lang == "de" else PSI_SCALE_EN
-
-    with st.form("pre_survey_form"):
-        # GSE
-        st.subheader(t("survey_gse_title", lang))
-        st.caption(t("survey_gse_info", lang))
-        gse_responses = {}
-        for i, item in enumerate(gse_items):
-            gse_responses[i] = st.radio(
-                f"{i+1}. {item}",
-                options=list(gse_scale.keys()),
-                format_func=lambda x, s=gse_scale: s[x],
-                index=None,
-                horizontal=True,
-                key=f"gse_{i}",
-            )
-
-        st.divider()
-
-        # PSI
-        st.subheader(t("survey_psi_title", lang))
-        st.caption(t("survey_psi_info", lang))
-        psi_responses = {}
-        for i, (item, _) in enumerate(psi_items):
-            psi_responses[i] = st.radio(
-                f"{i+1}. {item}",
-                options=list(psi_scale.keys()),
-                format_func=lambda x, s=psi_scale: s[x],
-                index=None,
-                horizontal=True,
-                key=f"psi_{i}",
-            )
-
-        submitted = st.form_submit_button(t("survey_submit", lang), type="primary", use_container_width=True)
-
-    if submitted:
-        # Validierung: alle Items beantwortet?
-        gse_missing = any(v is None for v in gse_responses.values())
-        psi_missing = any(v is None for v in psi_responses.values())
-        if gse_missing or psi_missing:
-            st.error(t("survey_error", lang))
-        else:
-            survey_store.save_survey(profile.user_id, "gse", "pre", gse_responses)
-            survey_store.save_survey(profile.user_id, "psi", "pre", psi_responses)
-            st.success(t("survey_done", lang))
-            st.rerun()
-
-    st.stop()
+# ── Onboarding: KAIA startet automatisch das erste Gespräch ───────────────────
+if (
+    profile.session_count == 1
+    and not st.session_state.onboarding_started
+    and not st.session_state.messages
+):
+    st.session_state.onboarding_started = True
+    _onboarding_system = build_onboarding_prompt(
+        name=profile.name,
+        context=profile.context or "",
+        language=lang,
+    )
+    _provider = st.session_state.provider
+    if _provider:
+        with st.spinner(t("llm_spinner", lang)):
+            try:
+                _trigger = [Message(role="user", content="__start__")]
+                _resp = _provider.complete(_trigger, _onboarding_system)
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": _resp.content}
+                )
+                session = st.session_state.session
+                store.add_message(
+                    session, "assistant", _resp.content,
+                    tokens=_resp.tokens_used or 0,
+                    latency_ms=_resp.latency_ms or 0,
+                )
+            except Exception:
+                pass
+    st.rerun()
 
 # ── Voice-Modus: Gesprächsansicht ──────────────────────────────────────────────
 if st.session_state.voice_mode:
@@ -406,12 +438,24 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     history = [Message(role=m["role"], content=m["content"]) for m in st.session_state.messages]
 
-    memory_context = memory.build_memory_context(profile.user_id)
-    system_prompt = build_system_prompt(
-        profile=profile,
-        memory_context=memory_context,
-        language=lang,
-    )
+    # Onboarding: History beginnt mit KAIAs Eröffnungsnachricht (assistant).
+    # Die meisten LLM-APIs erfordern jedoch user als erste Rolle → Trigger vorne einsetzen.
+    if profile.session_count == 1 and history and history[0].role == "assistant":
+        history = [Message(role="user", content="__start__")] + history
+
+    if profile.session_count == 1:
+        system_prompt = build_onboarding_prompt(
+            name=profile.name,
+            context=profile.context or "",
+            language=lang,
+        )
+    else:
+        memory_context = memory.build_memory_context(profile.user_id)
+        system_prompt = build_system_prompt(
+            profile=profile,
+            memory_context=memory_context,
+            language=lang,
+        )
 
     st.session_state.kaia_state = "thinking"
     with st.spinner(t("llm_spinner", lang)):
