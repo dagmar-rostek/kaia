@@ -1,0 +1,48 @@
+# KAIA – Kinetic AI Agent
+# Docker Compose für Hetzner Cloud Deployment
+#
+# Starten:  docker compose up -d
+# Stoppen:  docker compose down
+# Logs:     docker compose logs -f app
+# Update:   git pull && docker compose up -d --build
+
+services:
+
+  # ── PostgreSQL Datenbank ───────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       kaia
+      POSTGRES_USER:     kaia
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kaia -d kaia"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── KAIA Streamlit App ─────────────────────────────────────────────────────
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      DATABASE_URL:       postgresql://kaia:${POSTGRES_PASSWORD}@db:5432/kaia
+      DATA_DIR:           /app/data
+      ANTHROPIC_API_KEY:  ${ANTHROPIC_API_KEY}
+      MISTRAL_API_KEY:    ${MISTRAL_API_KEY}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - chroma_data:/app/data/chroma
+
+# ── Persistente Volumes ────────────────────────────────────────────────────────
+volumes:
+  postgres_data:   # PostgreSQL Datenbankdateien
+  chroma_data:     # ChromaDB Vektorspeicher

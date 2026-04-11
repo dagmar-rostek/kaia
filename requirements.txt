@@ -16,3 +16,6 @@ requests>=2.32.0
 # Memory & Datenbank
 # ChromaDB ohne sentence-transformers: nutzt eingebaute ONNX-Embeddings (kein torch)
 chromadb>=0.5.0
+
+# PostgreSQL (Produktion — ignoriert wenn DATABASE_URL nicht gesetzt)
+psycopg2-binary>=2.9.0
