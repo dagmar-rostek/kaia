@@ -53,6 +53,8 @@ class VoxtralTTSProvider(TTSProvider):
         voice = voice_id or self._default_voice
         start = time.time()
 
+        import base64
+
         response = requests.post(
             _API_URL,
             headers={
@@ -68,10 +70,12 @@ class VoxtralTTSProvider(TTSProvider):
         )
         response.raise_for_status()
 
+        # Voxtral gibt JSON mit Base64-kodiertem Audio zurück
+        audio_bytes = base64.b64decode(response.json()["audio_data"])
         latency_ms = (time.time() - start) * 1000
 
         return SynthesisResult(
-            audio_bytes=response.content,
+            audio_bytes=audio_bytes,
             provider=self.name,
             voice_id=voice,
             format="mp3",
