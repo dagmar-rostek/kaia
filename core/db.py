@@ -66,9 +66,21 @@ _SCHEMA = [
         created_at      TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS surveys (
+        survey_id    TEXT PRIMARY KEY,
+        user_id      TEXT NOT NULL REFERENCES users(user_id),
+        timing       TEXT NOT NULL,     -- 'pre' oder 'post'
+        instrument   TEXT NOT NULL,     -- 'gse' oder 'psi'
+        responses    TEXT NOT NULL,     -- JSON: {"item_1": 3, "item_2": 4, ...}
+        total_score  REAL NOT NULL,
+        created_at   TEXT NOT NULL
+    )
+    """,
     "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_obs_user      ON observations(user_id)",
     "CREATE INDEX IF NOT EXISTS idx_obs_category  ON observations(user_id, category)",
+    "CREATE INDEX IF NOT EXISTS idx_surveys_user  ON surveys(user_id)",
 ]
 
 

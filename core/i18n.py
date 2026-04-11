@@ -71,6 +71,20 @@ TRANSLATIONS = {
         "start_success":        "Session {n} gestartet mit {provider}.",
         "start_fail":           "Session konnte nicht gestartet werden: {error}",
 
+        # Survey / Baseline-Messung
+        "survey_title":         "Baseline-Messung vor dem ersten Gespräch",
+        "survey_intro":         "Bevor du mit KAIA sprichst, bitten wir dich, zwei kurze Fragebögen auszufüllen. Das dauert ca. 3–5 Minuten. Deine Antworten bilden die wissenschaftliche Baseline für die Auswertung.",
+        "survey_gse_title":     "Teil 1: Allgemeine Selbstwirksamkeit (GSE)",
+        "survey_gse_info":      "Schwarzer & Jerusalem, 1995 — 10 Aussagen, Skala 1–4",
+        "survey_psi_title":     "Teil 2: Wahrgenommene Problemlösekompetenz (PSI)",
+        "survey_psi_info":      "Adaptiert nach Heppner & Petersen, 1982 — 6 Aussagen, Skala 1–5",
+        "survey_submit":        "Weiter zum Gespräch",
+        "survey_error":         "Bitte beantworte alle Fragen bevor du weiter machst.",
+        "survey_post_title":    "Abschlussmessung",
+        "survey_post_intro":    "Du hast mindestens 3 Sessions mit KAIA abgeschlossen. Bitte fülle jetzt die Abschlussmessung aus — sie ist der zweite Teil der wissenschaftlichen Auswertung.",
+        "survey_post_button":   "Abschlussmessung starten",
+        "survey_done":          "Vielen Dank — deine Antworten wurden gespeichert.",
+
         # Aktives Profil
         "profile_user":         "**User:**",
         "profile_context":      "**Kontext:**",
@@ -144,6 +158,20 @@ TRANSLATIONS = {
         "tts_voxtral_caption":  "Voxtral: EU-hosted (Mistral AI) · DPA recommended",
         "tts_elevenlabs_warn":  "ElevenLabs: US servers — DPA + participant consent required.",
         "voice_label":          "Voice",
+
+        # Survey / Baseline measurement
+        "survey_title":         "Baseline measurement before your first conversation",
+        "survey_intro":         "Before talking to KAIA, please fill in two short questionnaires. This takes about 3–5 minutes. Your answers form the scientific baseline for the study evaluation.",
+        "survey_gse_title":     "Part 1: General Self-Efficacy (GSE)",
+        "survey_gse_info":      "Schwarzer & Jerusalem, 1995 — 10 items, scale 1–4",
+        "survey_psi_title":     "Part 2: Perceived Problem-Solving Competence (PSI)",
+        "survey_psi_info":      "Adapted from Heppner & Petersen, 1982 — 6 items, scale 1–5",
+        "survey_submit":        "Continue to conversation",
+        "survey_error":         "Please answer all questions before continuing.",
+        "survey_post_title":    "Post-measurement",
+        "survey_post_intro":    "You have completed at least 3 sessions with KAIA. Please fill in the post-measurement now — it is the second part of the scientific evaluation.",
+        "survey_post_button":   "Start post-measurement",
+        "survey_done":          "Thank you — your answers have been saved.",
 
         # Profile
         "profile_header":       "Profile",

@@ -11,7 +11,10 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 from providers import get_provider, Message
-from core import ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode, t, build_system_prompt
+from core import (ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode,
+                  t, build_system_prompt, SurveyStore,
+                  GSE_ITEMS_DE, GSE_ITEMS_EN, PSI_ITEMS_DE, PSI_ITEMS_EN,
+                  GSE_SCALE_DE, GSE_SCALE_EN, PSI_SCALE_DE, PSI_SCALE_EN)
 from voice import get_stt_provider, get_tts_provider, AVAILABLE_TTS_PROVIDERS
 
 load_dotenv()
@@ -66,10 +69,15 @@ if "theme"          not in st.session_state:
     st.session_state.theme = "dark"
 if "consent_given"  not in st.session_state:
     st.session_state.consent_given = False
+if "survey_store"   not in st.session_state:
+    st.session_state.survey_store = None
 
 store  = st.session_state.store
 memory = st.session_state.memory
 lang   = st.session_state.lang
+
+if st.session_state.survey_store is None:
+    st.session_state.survey_store = SurveyStore(db_path=DB_PATH)
 
 # ── Theme CSS-Injection ────────────────────────────────────────────────────────
 _LIGHT_CSS = """
@@ -270,6 +278,68 @@ with st.sidebar:
 # ── Kein Profil ────────────────────────────────────────────────────────────────
 if not st.session_state.profile:
     st.info(t("no_profile_info", lang))
+    st.stop()
+
+# ── Baseline-Messung (Pre-Survey) ──────────────────────────────────────────────
+# Erscheint einmalig vor dem ersten Gespräch — GSE + PSI als Pflichtmessung
+
+survey_store = st.session_state.survey_store
+profile      = st.session_state.profile
+
+if not survey_store.has_pre_surveys(profile.user_id):
+    st.title(t("survey_title", lang))
+    st.info(t("survey_intro", lang))
+
+    gse_items  = GSE_ITEMS_DE  if lang == "de" else GSE_ITEMS_EN
+    gse_scale  = GSE_SCALE_DE  if lang == "de" else GSE_SCALE_EN
+    psi_items  = PSI_ITEMS_DE  if lang == "de" else PSI_ITEMS_EN
+    psi_scale  = PSI_SCALE_DE  if lang == "de" else PSI_SCALE_EN
+
+    with st.form("pre_survey_form"):
+        # GSE
+        st.subheader(t("survey_gse_title", lang))
+        st.caption(t("survey_gse_info", lang))
+        gse_responses = {}
+        for i, item in enumerate(gse_items):
+            gse_responses[i] = st.radio(
+                f"{i+1}. {item}",
+                options=list(gse_scale.keys()),
+                format_func=lambda x, s=gse_scale: s[x],
+                index=None,
+                horizontal=True,
+                key=f"gse_{i}",
+            )
+
+        st.divider()
+
+        # PSI
+        st.subheader(t("survey_psi_title", lang))
+        st.caption(t("survey_psi_info", lang))
+        psi_responses = {}
+        for i, (item, _) in enumerate(psi_items):
+            psi_responses[i] = st.radio(
+                f"{i+1}. {item}",
+                options=list(psi_scale.keys()),
+                format_func=lambda x, s=psi_scale: s[x],
+                index=None,
+                horizontal=True,
+                key=f"psi_{i}",
+            )
+
+        submitted = st.form_submit_button(t("survey_submit", lang), type="primary", use_container_width=True)
+
+    if submitted:
+        # Validierung: alle Items beantwortet?
+        gse_missing = any(v is None for v in gse_responses.values())
+        psi_missing = any(v is None for v in psi_responses.values())
+        if gse_missing or psi_missing:
+            st.error(t("survey_error", lang))
+        else:
+            survey_store.save_survey(profile.user_id, "gse", "pre", gse_responses)
+            survey_store.save_survey(profile.user_id, "psi", "pre", psi_responses)
+            st.success(t("survey_done", lang))
+            st.rerun()
+
     st.stop()
 
 # ── Voice-Modus: Gesprächsansicht ──────────────────────────────────────────────
