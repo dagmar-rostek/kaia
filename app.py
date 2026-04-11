@@ -62,12 +62,32 @@ if "audio_counter"  not in st.session_state:
     st.session_state.audio_counter = 0
 if "lang"           not in st.session_state:
     st.session_state.lang = "de"
+if "theme"          not in st.session_state:
+    st.session_state.theme = "dark"
 if "consent_given"  not in st.session_state:
     st.session_state.consent_given = False
 
 store  = st.session_state.store
 memory = st.session_state.memory
 lang   = st.session_state.lang
+
+# ── Theme CSS-Injection ────────────────────────────────────────────────────────
+_LIGHT_CSS = """
+<style>
+.stApp { background-color: #f5f7fa; }
+.stApp > header { background-color: #f5f7fa !important; }
+section[data-testid="stSidebar"] { background-color: #e8ecf1; }
+.stApp, .stMarkdown, p, span, label, h1, h2, h3,
+div[data-testid="stChatMessage"] { color: #1a1d23 !important; }
+.stTextInput input, .stSelectbox div[data-baseweb="select"] {
+    background-color: #ffffff !important; color: #1a1d23 !important;
+}
+div[data-testid="stChatMessage"] { background-color: #e8ecf1 !important; }
+</style>
+"""
+
+if st.session_state.theme == "light":
+    st.markdown(_LIGHT_CSS, unsafe_allow_html=True)
 
 # ── Consent-Popup ──────────────────────────────────────────────────────────────
 @st.dialog(t("consent_title", lang), width="large")
@@ -92,15 +112,27 @@ st.divider()
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    # Sprache — ganz oben
-    lang_choice = st.radio(
-        t("language_label", lang),
-        options=["DE", "EN"],
-        index=0 if lang == "de" else 1,
-        horizontal=True,
-    )
-    st.session_state.lang = "de" if lang_choice == "DE" else "en"
-    lang = st.session_state.lang
+    # Sprache + Design — ganz oben, nebeneinander
+    _col_lang, _col_theme = st.columns(2)
+    with _col_lang:
+        lang_choice = st.radio(
+            t("language_label", lang),
+            options=["DE", "EN"],
+            index=0 if lang == "de" else 1,
+            horizontal=True,
+        )
+        st.session_state.lang = "de" if lang_choice == "DE" else "en"
+        lang = st.session_state.lang
+    with _col_theme:
+        theme_dark_label  = t("theme_dark", lang)
+        theme_light_label = t("theme_light", lang)
+        theme_choice = st.radio(
+            t("theme_label", lang),
+            options=[theme_dark_label, theme_light_label],
+            index=0 if st.session_state.theme == "dark" else 1,
+            horizontal=True,
+        )
+        st.session_state.theme = "dark" if theme_choice == theme_dark_label else "light"
 
     st.header(t("setup_header", lang))
 

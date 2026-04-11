@@ -7,4 +7,5 @@ enableXsrfProtection = false
 gatherUsageStats = false
 
 [theme]
+base = "dark"
 primaryColor = "#7BB4E3"

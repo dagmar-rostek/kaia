@@ -11,6 +11,9 @@ TRANSLATIONS = {
         # Allgemein
         "app_caption":          "Keen · Adaptive · Intelligent · Aware",
         "language_label":       "Sprache",
+        "theme_label":          "Design",
+        "theme_dark":           "Dunkel",
+        "theme_light":          "Hell",
 
         # Consent / DSGVO-Popup
         "consent_title":        "Datenschutz & Hinweise",
@@ -99,6 +102,9 @@ TRANSLATIONS = {
         # General
         "app_caption":          "Keen · Adaptive · Intelligent · Aware",
         "language_label":       "Language",
+        "theme_label":          "Theme",
+        "theme_dark":           "Dark",
+        "theme_light":          "Light",
 
         # Consent / Privacy popup
         "consent_title":        "Privacy & Notices",
