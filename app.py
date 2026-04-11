@@ -154,25 +154,30 @@ with st.sidebar:
     st.divider()
     st.subheader(t("profile_header", lang))
     name    = st.text_input(t("name_label", lang), placeholder=t("name_placeholder", lang))
+    pin     = st.text_input(t("pin_label", lang), placeholder=t("pin_placeholder", lang),
+                            type="password", max_chars=4)
     context = st.text_input(t("context_label", lang), placeholder=t("context_placeholder", lang))
 
-    if name:
-        existing = store.find_by_name(name)
+    if name and pin and len(pin) == 4 and pin.isdigit():
+        existing = store.find_by_pin(name, pin)
         if existing:
             st.caption(t("returning_user", lang, name=existing.name, n=existing.session_count + 1))
 
     if st.button(t("start_button", lang), type="primary", use_container_width=True):
         if not name:
             st.error(t("start_error_name", lang))
+        elif not pin or len(pin) != 4 or not pin.isdigit():
+            st.error(t("start_error_pin", lang))
         else:
             try:
-                profile = store.find_by_name(name)
+                pin_uid = store.pin_user_id(name, pin)
+                profile = store.find_by_pin(name, pin)
                 if profile:
                     if context and context != profile.context:
                         profile.context = context
                         store.save_profile(profile)
                 else:
-                    profile = store.create_profile(name=name, context=context)
+                    profile = store.create_profile(name=name, context=context, user_id=pin_uid)
 
                 llm_provider = get_provider(provider_name)
                 session = store.start_session(profile, llm_provider.name, llm_provider.model)

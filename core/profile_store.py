@@ -10,6 +10,7 @@ DSGVO: Alle Daten bleiben lokal in data/kaia.db.
 Die data/-Directory ist via .gitignore ausgeschlossen.
 """
 
+import hashlib
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -38,11 +39,29 @@ class ProfileStore:
 
     # ── User Profiles ──────────────────────────────────────────────────────────
 
-    def create_profile(self, name: str = "", context: str = "") -> UserProfile:
+    @staticmethod
+    def pin_user_id(name: str, pin: str) -> str:
+        """Erzeugt eine deterministische user_id aus Name + PIN (SHA-256)."""
+        raw = f"{name.strip().lower()}:{pin}"
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    def find_by_pin(self, name: str, pin: str) -> "UserProfile | None":
+        """
+        Sucht ein Profil anhand der PIN-basierten user_id.
+        Gibt None zurück wenn kein Profil gefunden wurde oder PIN falsch ist.
+        """
+        user_id = self.pin_user_id(name, pin)
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        return self._row_to_profile(dict(row)) if row else None
+
+    def create_profile(self, name: str = "", context: str = "", user_id: str | None = None) -> UserProfile:
         """Erstellt ein neues Nutzerprofil und persistiert es."""
         now = datetime.now().isoformat()
         profile = UserProfile(
-            user_id=str(uuid.uuid4()),
+            user_id=user_id or str(uuid.uuid4()),
             created_at=now,
             updated_at=now,
             name=name,
