@@ -12,6 +12,32 @@ TRANSLATIONS = {
         "app_caption":          "Keen · Adaptive · Intelligent · Aware",
         "language_label":       "Sprache",
 
+        # Consent / DSGVO-Popup
+        "consent_title":        "Datenschutz & Hinweise",
+        "consent_body": (
+            "**Datenschutzhinweis (DSGVO)**\n\n"
+            "KAIA speichert folgende Daten lokal auf diesem Server:\n"
+            "- Name, Lernkontext und Sitzungsverläufe (SQLite)\n"
+            "- Semantische Beobachtungen als Vektoren (ChromaDB)\n\n"
+            "Es werden **keine** personenbezogenen Daten an Dritte weitergegeben, "
+            "außer an den von dir gewählten KI-Anbieter (Anthropic, Mistral oder lokal via Ollama) "
+            "zur Verarbeitung deiner Eingaben.\n\n"
+            "Wenn du Sprachausgabe (TTS) über **ElevenLabs** aktivierst, werden Texte "
+            "an US-Server übertragen — nur mit deiner ausdrücklichen Einwilligung.\n\n"
+            "---\n\n"
+            "**Hinweis gemäß EU AI Act (Art. 52)**\n\n"
+            "Du interagierst mit einem **KI-System**. "
+            "KAIA ist ein empathischer Lernbegleiter auf Basis großer Sprachmodelle. "
+            "Antworten können unvollständig oder fehlerhaft sein — "
+            "bitte behalte stets dein eigenes Urteilsvermögen.\n\n"
+            "---\n\n"
+            "Mit Klick auf *Verstanden & Zustimmen* bestätigst du, "
+            "dass du diese Hinweise gelesen und verstanden hast."
+        ),
+        "consent_checkbox":     "Ich habe die Datenschutzhinweise gelesen und stimme zu.",
+        "consent_button":       "Verstanden & Zustimmen",
+        "consent_must_check":   "Bitte setze den Haken, um fortzufahren.",
+
         # Sidebar Setup
         "setup_header":         "Einstellungen",
         "llm_provider_label":   "LLM Provider",
@@ -69,6 +95,31 @@ TRANSLATIONS = {
         # General
         "app_caption":          "Keen · Adaptive · Intelligent · Aware",
         "language_label":       "Language",
+
+        # Consent / Privacy popup
+        "consent_title":        "Privacy & Notices",
+        "consent_body": (
+            "**Privacy Notice (GDPR)**\n\n"
+            "KAIA stores the following data locally on this server:\n"
+            "- Name, learning context and session history (SQLite)\n"
+            "- Semantic observations as vectors (ChromaDB)\n\n"
+            "No personal data is shared with third parties except the AI provider "
+            "you selected (Anthropic, Mistral, or local via Ollama) for processing your inputs.\n\n"
+            "If you enable voice output (TTS) via **ElevenLabs**, text will be "
+            "transmitted to US servers — only with your explicit consent.\n\n"
+            "---\n\n"
+            "**Notice under EU AI Act (Art. 52)**\n\n"
+            "You are interacting with an **AI system**. "
+            "KAIA is an empathic learning companion based on large language models. "
+            "Responses may be incomplete or incorrect — "
+            "please always apply your own judgement.\n\n"
+            "---\n\n"
+            "By clicking *Understood & Agree* you confirm that you have read "
+            "and understood these notices."
+        ),
+        "consent_checkbox":     "I have read the privacy notices and agree.",
+        "consent_button":       "Understood & Agree",
+        "consent_must_check":   "Please tick the box to continue.",
 
         # Sidebar Setup
         "setup_header":         "Settings",

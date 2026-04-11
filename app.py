@@ -62,10 +62,28 @@ if "audio_counter"  not in st.session_state:
     st.session_state.audio_counter = 0
 if "lang"           not in st.session_state:
     st.session_state.lang = "de"
+if "consent_given"  not in st.session_state:
+    st.session_state.consent_given = False
 
 store  = st.session_state.store
 memory = st.session_state.memory
 lang   = st.session_state.lang
+
+# ── Consent-Popup ──────────────────────────────────────────────────────────────
+@st.dialog(t("consent_title", lang), width="large")
+def show_consent_dialog():
+    st.markdown(t("consent_body", lang))
+    checked = st.checkbox(t("consent_checkbox", lang), key="consent_checkbox_widget")
+    if st.button(t("consent_button", lang), type="primary", use_container_width=True):
+        if checked:
+            st.session_state.consent_given = True
+            st.rerun()
+        else:
+            st.error(t("consent_must_check", lang))
+
+if not st.session_state.consent_given:
+    show_consent_dialog()
+    st.stop()
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.title("✦ KAIA")
