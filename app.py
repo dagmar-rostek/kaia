@@ -54,6 +54,8 @@ if "stt_provider" not in st.session_state:
     st.session_state.stt_provider = None
 if "voice_mode"   not in st.session_state:
     st.session_state.voice_mode = False
+if "kaia_state"   not in st.session_state:
+    st.session_state.kaia_state = "ready"   # ready | listening | thinking | speaking
 
 store  = st.session_state.store
 memory = st.session_state.memory
@@ -67,7 +69,6 @@ st.divider()
 with st.sidebar:
     st.header("Setup")
 
-    # LLM Provider
     provider_name = st.selectbox(
         "LLM Provider",
         options=["claude", "mistral", "ollama"],
@@ -96,13 +97,11 @@ with st.sidebar:
             help="Voxtral: EU-Server | ElevenLabs: USA (AVV erforderlich)"
         )
 
-        # DSGVO-Hinweis je Provider
         if tts_name == "voxtral":
             st.caption("Voxtral: EU-gehostet (Mistral AI) · AVV empfohlen")
         elif tts_name == "elevenlabs":
-            st.warning("ElevenLabs: US-Server — AVV + Einwilligung der Probanden erforderlich.")
+            st.warning("ElevenLabs: US-Server — AVV + Einwilligung erforderlich.")
 
-        # Stimmenauswahl wenn TTS aktiv
         if tts_name != "— keiner —":
             try:
                 tts = get_tts_provider(tts_name)
@@ -132,7 +131,6 @@ with st.sidebar:
             st.error("Bitte gib deinen Namen ein.")
         else:
             try:
-                # Wiederkehrenden Nutzer erkennen
                 profile = store.find_by_name(name)
                 if profile:
                     if context and context != profile.context:
@@ -144,10 +142,8 @@ with st.sidebar:
                 llm_provider = get_provider(provider_name)
                 session = store.start_session(profile, llm_provider.name, llm_provider.model)
 
-                # STT initialisieren wenn Voice-Modus aktiv
                 stt = get_stt_provider("whisper") if voice_mode else None
 
-                # TTS initialisieren wenn ausgewählt
                 tts = None
                 if voice_mode and tts_name != "— keiner —":
                     try:
@@ -161,6 +157,7 @@ with st.sidebar:
                 st.session_state.stt_provider = stt
                 st.session_state.tts_provider = tts
                 st.session_state.messages     = []
+                st.session_state.kaia_state   = "ready"
                 st.success(f"Session {profile.session_count} gestartet mit {provider_name}.")
             except Exception as e:
                 st.error(f"Session konnte nicht gestartet werden: {e}")
@@ -192,27 +189,44 @@ with st.sidebar:
             st.session_state.stt_provider = None
             st.session_state.tts_provider = None
             st.session_state.messages     = []
+            st.session_state.kaia_state   = "ready"
             st.rerun()
 
-# ── Chat area ──────────────────────────────────────────────────────────────────
+# ── Kein Profil ────────────────────────────────────────────────────────────────
 if not st.session_state.profile:
     st.info("Richte dein Profil in der Sidebar ein, um mit KAIA zu sprechen.")
     st.stop()
 
-# Nachrichtenverlauf anzeigen
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-# ── Eingabe: Text oder Sprache ─────────────────────────────────────────────────
-user_input = None
-
+# ── Voice-Modus: Gesprächsansicht ──────────────────────────────────────────────
 if st.session_state.voice_mode:
-    # Spracheingabe via Mikrofon
-    audio_bytes = st.audio_input("Sprich mit KAIA...")
+    _STATE_LABELS = {
+        "ready":     "🎙️  Bereit — nimm deine Aufnahme auf",
+        "thinking":  "💭  KAIA denkt...",
+        "speaking":  "🔊  KAIA spricht...",
+    }
+    st.info(_STATE_LABELS.get(st.session_state.kaia_state, ""))
+
+    # Letzten Austausch anzeigen (kompakt)
+    if st.session_state.messages:
+        last_msgs = st.session_state.messages[-2:]
+        for msg in last_msgs:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+    st.divider()
+
+    # Mikrofon — nur aktiv wenn KAIA nicht spricht/denkt
+    if st.session_state.kaia_state == "ready":
+        audio_bytes = st.audio_input("⏺  Aufnehmen und abspielen zum Senden")
+    else:
+        st.audio_input("⏺  Aufnehmen und abspielen zum Senden", disabled=True)
+        audio_bytes = None
+
+    user_input = None
     if audio_bytes:
         stt = st.session_state.stt_provider
         if stt:
+            st.session_state.kaia_state = "thinking"
             with st.spinner("Erkenne Sprache..."):
                 try:
                     result = stt.transcribe(audio_bytes.read())
@@ -220,8 +234,14 @@ if st.session_state.voice_mode:
                     st.caption(f'Erkannt: *"{user_input}"*')
                 except Exception as e:
                     st.error(f"Spracherkennung fehlgeschlagen: {e}")
+                    st.session_state.kaia_state = "ready"
+
+# ── Text-Modus: Chat-Ansicht ───────────────────────────────────────────────────
 else:
-    # Texteingabe
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
     user_input = st.chat_input("Schreib mit KAIA...")
 
 # ── LLM-Aufruf ────────────────────────────────────────────────────────────────
@@ -231,13 +251,13 @@ if user_input:
     provider = st.session_state.provider
     tts      = st.session_state.tts_provider
 
-    with st.chat_message("user"):
-        st.markdown(user_input)
+    if not st.session_state.voice_mode:
+        with st.chat_message("user"):
+            st.markdown(user_input)
 
     st.session_state.messages.append({"role": "user", "content": user_input})
     history = [Message(role=m["role"], content=m["content"]) for m in st.session_state.messages]
 
-    # System-Prompt mit Gedächtnis anreichern
     memory_context = memory.build_memory_context(profile.user_id)
     system_prompt = f"""You are KAIA — a Kinetic AI Agent.
 You are an empathic learning companion. Your role is not to lecture,
@@ -252,6 +272,7 @@ Current mode: {profile.current_mode.value}
 Be warm, curious, and encouraging. Ask one good question rather than giving long explanations.
 Respond in the same language the learner uses."""
 
+    st.session_state.kaia_state = "thinking"
     with st.chat_message("assistant"):
         with st.spinner("KAIA denkt..."):
             try:
@@ -270,14 +291,17 @@ Respond in the same language the learner uses."""
                     latency_ms=response.latency_ms or 0,
                 )
 
-                # Sprachausgabe wenn TTS aktiv
+                # Sprachausgabe
                 if tts:
-                    with st.spinner("KAIA spricht..."):
-                        try:
-                            synthesis = tts.synthesize(response.content)
-                            st.audio(synthesis.audio_bytes, format="audio/mp3", autoplay=True)
-                        except Exception as e:
-                            st.warning(f"Sprachausgabe fehlgeschlagen: {e}")
+                    st.session_state.kaia_state = "speaking"
+                    try:
+                        synthesis = tts.synthesize(response.content)
+                        st.audio(synthesis.audio_bytes, format="audio/mp3", autoplay=True)
+                    except Exception as e:
+                        st.warning(f"Sprachausgabe fehlgeschlagen: {e}")
 
             except Exception as e:
                 st.error(f"Fehler: {e}")
+
+    st.session_state.kaia_state = "ready"
+    st.rerun()
