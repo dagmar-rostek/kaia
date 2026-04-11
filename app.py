@@ -55,7 +55,9 @@ if "stt_provider" not in st.session_state:
 if "voice_mode"   not in st.session_state:
     st.session_state.voice_mode = False
 if "kaia_state"   not in st.session_state:
-    st.session_state.kaia_state = "ready"   # ready | listening | thinking | speaking
+    st.session_state.kaia_state = "ready"   # ready | thinking | speaking
+if "last_audio"   not in st.session_state:
+    st.session_state.last_audio = None      # TTS-Bytes für nächsten Render
 
 store  = st.session_state.store
 memory = st.session_state.memory
@@ -200,22 +202,26 @@ if not st.session_state.profile:
 # ── Voice-Modus: Gesprächsansicht ──────────────────────────────────────────────
 if st.session_state.voice_mode:
     _STATE_LABELS = {
-        "ready":     "🎙️  Bereit — nimm deine Aufnahme auf",
-        "thinking":  "💭  KAIA denkt...",
-        "speaking":  "🔊  KAIA spricht...",
+        "ready":    "🎙️  Bereit — nimm deine Aufnahme auf",
+        "thinking": "💭  KAIA denkt...",
+        "speaking": "🔊  KAIA spricht...",
     }
     st.info(_STATE_LABELS.get(st.session_state.kaia_state, ""))
 
+    # Audio aus letzter Antwort abspielen (wird nach einem Render gelöscht)
+    if st.session_state.last_audio:
+        st.audio(st.session_state.last_audio, format="audio/mp3", autoplay=True)
+        st.session_state.last_audio = None
+
     # Letzten Austausch anzeigen (kompakt)
     if st.session_state.messages:
-        last_msgs = st.session_state.messages[-2:]
-        for msg in last_msgs:
+        for msg in st.session_state.messages[-2:]:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
     st.divider()
 
-    # Mikrofon — nur aktiv wenn KAIA nicht spricht/denkt
+    # Mikrofon — nur aktiv wenn KAIA bereit ist
     if st.session_state.kaia_state == "ready":
         audio_bytes = st.audio_input("⏺  Aufnehmen und abspielen zum Senden")
     else:
@@ -226,7 +232,6 @@ if st.session_state.voice_mode:
     if audio_bytes:
         stt = st.session_state.stt_provider
         if stt:
-            st.session_state.kaia_state = "thinking"
             with st.spinner("Erkenne Sprache..."):
                 try:
                     result = stt.transcribe(audio_bytes.read())
@@ -273,35 +278,38 @@ Be warm, curious, and encouraging. Ask one good question rather than giving long
 Respond in the same language the learner uses."""
 
     st.session_state.kaia_state = "thinking"
-    with st.chat_message("assistant"):
-        with st.spinner("KAIA denkt..."):
-            try:
-                response = provider.complete(history, system_prompt)
-                st.markdown(response.content)
+    with st.spinner("KAIA denkt..."):
+        try:
+            response = provider.complete(history, system_prompt)
 
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": response.content,
-                })
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": response.content,
+            })
 
-                store.add_message(session, "user", user_input)
-                store.add_message(
-                    session, "assistant", response.content,
-                    tokens=response.tokens_used or 0,
-                    latency_ms=response.latency_ms or 0,
-                )
+            store.add_message(session, "user", user_input)
+            store.add_message(
+                session, "assistant", response.content,
+                tokens=response.tokens_used or 0,
+                latency_ms=response.latency_ms or 0,
+            )
 
-                # Sprachausgabe
-                if tts:
-                    st.session_state.kaia_state = "speaking"
-                    try:
-                        synthesis = tts.synthesize(response.content)
-                        st.audio(synthesis.audio_bytes, format="audio/mp3", autoplay=True)
-                    except Exception as e:
-                        st.warning(f"Sprachausgabe fehlgeschlagen: {e}")
+            # Im Text-Modus sofort anzeigen
+            if not st.session_state.voice_mode:
+                with st.chat_message("assistant"):
+                    st.markdown(response.content)
 
-            except Exception as e:
-                st.error(f"Fehler: {e}")
+            # TTS — Audio in session_state speichern, wird beim nächsten Render abgespielt
+            if tts:
+                st.session_state.kaia_state = "speaking"
+                try:
+                    synthesis = tts.synthesize(response.content)
+                    st.session_state.last_audio = synthesis.audio_bytes
+                except Exception as e:
+                    st.warning(f"Sprachausgabe fehlgeschlagen: {e}")
+
+        except Exception as e:
+            st.error(f"Fehler: {e}")
 
     st.session_state.kaia_state = "ready"
     st.rerun()
