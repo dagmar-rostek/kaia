@@ -56,8 +56,10 @@ if "voice_mode"   not in st.session_state:
     st.session_state.voice_mode = False
 if "kaia_state"   not in st.session_state:
     st.session_state.kaia_state = "ready"   # ready | thinking | speaking
-if "last_audio"   not in st.session_state:
+if "last_audio"     not in st.session_state:
     st.session_state.last_audio = None      # TTS-Bytes für nächsten Render
+if "audio_counter"  not in st.session_state:
+    st.session_state.audio_counter = 0      # Widget-Key — Reset nach jeder Aufnahme
 
 store  = st.session_state.store
 memory = st.session_state.memory
@@ -221,15 +223,17 @@ if st.session_state.voice_mode:
 
     st.divider()
 
-    # Mikrofon — nur aktiv wenn KAIA bereit ist
+    # Mikrofon — Key wechselt nach jeder Aufnahme → Widget wird zurückgesetzt
+    audio_key = f"mic_{st.session_state.audio_counter}"
     if st.session_state.kaia_state == "ready":
-        audio_bytes = st.audio_input("⏺  Aufnehmen und abspielen zum Senden")
+        audio_bytes = st.audio_input("⏺  Aufnehmen und abspielen zum Senden", key=audio_key)
     else:
-        st.audio_input("⏺  Aufnehmen und abspielen zum Senden", disabled=True)
+        st.audio_input("⏺  Aufnehmen und abspielen zum Senden", key=audio_key, disabled=True)
         audio_bytes = None
 
     user_input = None
     if audio_bytes:
+        st.session_state.audio_counter += 1   # Widget zurücksetzen für nächste Runde
         stt = st.session_state.stt_provider
         if stt:
             with st.spinner("Erkenne Sprache..."):
