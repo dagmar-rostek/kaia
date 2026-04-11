@@ -11,7 +11,7 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 from providers import get_provider, Message
-from core import ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode
+from core import ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode, t
 from voice import get_stt_provider, get_tts_provider, AVAILABLE_TTS_PROVIDERS
 
 load_dotenv()
@@ -36,103 +36,116 @@ st.set_page_config(
 )
 
 # ── Session state defaults ─────────────────────────────────────────────────────
-if "store"        not in st.session_state:
+if "store"          not in st.session_state:
     st.session_state.store = ProfileStore(db_path=DB_PATH)
-if "memory"       not in st.session_state:
+if "memory"         not in st.session_state:
     st.session_state.memory = MemoryStore(chroma_path=CHROMA_PATH, db_path=DB_PATH)
-if "profile"      not in st.session_state:
+if "profile"        not in st.session_state:
     st.session_state.profile = None
-if "session"      not in st.session_state:
+if "session"        not in st.session_state:
     st.session_state.session = None
-if "messages"     not in st.session_state:
+if "messages"       not in st.session_state:
     st.session_state.messages = []
-if "provider"     not in st.session_state:
+if "provider"       not in st.session_state:
     st.session_state.provider = None
-if "tts_provider" not in st.session_state:
+if "tts_provider"   not in st.session_state:
     st.session_state.tts_provider = None
-if "stt_provider" not in st.session_state:
+if "stt_provider"   not in st.session_state:
     st.session_state.stt_provider = None
-if "voice_mode"   not in st.session_state:
+if "voice_mode"     not in st.session_state:
     st.session_state.voice_mode = False
-if "kaia_state"   not in st.session_state:
-    st.session_state.kaia_state = "ready"   # ready | thinking | speaking
+if "kaia_state"     not in st.session_state:
+    st.session_state.kaia_state = "ready"
 if "last_audio"     not in st.session_state:
-    st.session_state.last_audio = None      # TTS-Bytes für nächsten Render
+    st.session_state.last_audio = None
 if "audio_counter"  not in st.session_state:
-    st.session_state.audio_counter = 0      # Widget-Key — Reset nach jeder Aufnahme
+    st.session_state.audio_counter = 0
+if "lang"           not in st.session_state:
+    st.session_state.lang = "de"
 
 store  = st.session_state.store
 memory = st.session_state.memory
+lang   = st.session_state.lang
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.title("✦ KAIA")
-st.caption("Keen · Adaptive · Intelligent · Aware")
+st.caption(t("app_caption", lang))
 st.divider()
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.header("Setup")
+    # Sprache — ganz oben
+    lang_choice = st.radio(
+        t("language_label", lang),
+        options=["DE", "EN"],
+        index=0 if lang == "de" else 1,
+        horizontal=True,
+    )
+    st.session_state.lang = "de" if lang_choice == "DE" else "en"
+    lang = st.session_state.lang
+
+    st.header(t("setup_header", lang))
 
     provider_name = st.selectbox(
-        "LLM Provider",
+        t("llm_provider_label", lang),
         options=["claude", "mistral", "ollama"],
         index=0,
     )
 
     # ── Voice-Modus Toggle ─────────────────────────────────────────────────────
     st.divider()
-    st.subheader("Eingabe")
+    st.subheader(t("input_header", lang))
     if not WHISPER_AVAILABLE:
-        st.caption("Spracheingabe nur lokal verfügbar.")
+        st.caption(t("voice_local_only", lang))
         voice_mode = False
         st.session_state.voice_mode = False
     else:
-        voice_mode = st.toggle("Spracheingabe aktivieren", value=st.session_state.voice_mode)
+        voice_mode = st.toggle(t("voice_toggle", lang), value=st.session_state.voice_mode)
         st.session_state.voice_mode = voice_mode
 
     if voice_mode:
-        st.caption("STT: Whisper (lokal · DSGVO ✓)")
+        st.caption(t("stt_caption", lang))
 
-        st.subheader("Sprachausgabe (TTS)")
-        tts_name = st.selectbox(
-            "TTS Provider",
-            options=["— keiner —"] + AVAILABLE_TTS_PROVIDERS,
-            index=0,
-            help="Voxtral: EU-Server | ElevenLabs: USA (AVV erforderlich)"
-        )
+        st.subheader(t("tts_header", lang))
+        tts_options = [t("tts_none", lang)] + AVAILABLE_TTS_PROVIDERS
+        tts_name = st.selectbox(t("tts_provider_label", lang), options=tts_options, index=0)
 
         if tts_name == "voxtral":
-            st.caption("Voxtral: EU-gehostet (Mistral AI) · AVV empfohlen")
+            st.caption(t("tts_voxtral_caption", lang))
         elif tts_name == "elevenlabs":
-            st.warning("ElevenLabs: US-Server — AVV + Einwilligung erforderlich.")
+            st.warning(t("tts_elevenlabs_warn", lang))
 
-        if tts_name != "— keiner —":
+        tts_none = t("tts_none", lang)
+        if tts_name != tts_none:
             try:
-                tts = get_tts_provider(tts_name)
-                voices = tts.list_voices(language="de") or tts.list_voices()
+                tts_preview = get_tts_provider(tts_name)
+                # Stimmen nach Sprache filtern
+                voice_lang_filter = "de" if lang == "de" else "en"
+                voices = tts_preview.list_voices(language=voice_lang_filter) or tts_preview.list_voices()
                 voice_options = {v.name: v.voice_id for v in voices}
-                selected_voice_name = st.selectbox("Stimme", options=list(voice_options.keys()))
+                selected_voice_name = st.selectbox(t("voice_label", lang), options=list(voice_options.keys()))
                 selected_voice_id = voice_options[selected_voice_name]
             except Exception as e:
-                st.error(f"TTS nicht verfügbar: {e}")
-                tts_name = "— keiner —"
+                st.error(f"TTS: {e}")
+                tts_name = tts_none
     else:
-        tts_name = "— keiner —"
+        tts_name = t("tts_none", lang)
+        tts_none = tts_name
 
     # ── User Profile ───────────────────────────────────────────────────────────
     st.divider()
-    st.subheader("Profil")
-    name    = st.text_input("Dein Name", placeholder="z.B. Dagmar")
-    context = st.text_input("Woran arbeitest du?", placeholder="z.B. Masterthesis Data Science")
+    st.subheader(t("profile_header", lang))
+    name    = st.text_input(t("name_label", lang), placeholder=t("name_placeholder", lang))
+    context = st.text_input(t("context_label", lang), placeholder=t("context_placeholder", lang))
 
     if name:
         existing = store.find_by_name(name)
         if existing:
-            st.caption(f"Willkommen zurück, {existing.name} — Session {existing.session_count + 1}.")
+            st.caption(t("returning_user", lang, name=existing.name, n=existing.session_count + 1))
 
-    if st.button("Session starten", type="primary", use_container_width=True):
+    if st.button(t("start_button", lang), type="primary", use_container_width=True):
         if not name:
-            st.error("Bitte gib deinen Namen ein.")
+            st.error(t("start_error_name", lang))
         else:
             try:
                 profile = store.find_by_name(name)
@@ -149,11 +162,11 @@ with st.sidebar:
                 stt = get_stt_provider("whisper") if voice_mode else None
 
                 tts = None
-                if voice_mode and tts_name != "— keiner —":
+                if voice_mode and tts_name != tts_none:
                     try:
                         tts = get_tts_provider(tts_name, voice_id=selected_voice_id)
                     except Exception as e:
-                        st.warning(f"TTS konnte nicht geladen werden: {e}")
+                        st.warning(f"TTS: {e}")
 
                 st.session_state.profile      = profile
                 st.session_state.session      = session
@@ -162,24 +175,24 @@ with st.sidebar:
                 st.session_state.tts_provider = tts
                 st.session_state.messages     = []
                 st.session_state.kaia_state   = "ready"
-                st.success(f"Session {profile.session_count} gestartet mit {provider_name}.")
+                st.success(t("start_success", lang, n=profile.session_count, provider=provider_name))
             except Exception as e:
-                st.error(f"Session konnte nicht gestartet werden: {e}")
+                st.error(t("start_fail", lang, error=e))
 
     # ── Aktives Profil ─────────────────────────────────────────────────────────
     if st.session_state.profile:
         st.divider()
         p = st.session_state.profile
-        st.caption(f"**User:** {p.name}")
-        st.caption(f"**Kontext:** {p.context or '—'}")
-        st.caption(f"**Modus:** {p.current_mode.value}")
-        st.caption(f"**Sessions:** {p.session_count}")
+        st.caption(f"{t('profile_user', lang)} {p.name}")
+        st.caption(f"{t('profile_context', lang)} {p.context or '—'}")
+        st.caption(f"{t('profile_mode', lang)} {p.current_mode.value}")
+        st.caption(f"{t('profile_sessions', lang)} {p.session_count}")
         if st.session_state.tts_provider:
-            st.caption(f"**TTS:** {st.session_state.tts_provider.name}")
+            st.caption(f"{t('profile_tts', lang)} {st.session_state.tts_provider.name}")
 
-        if st.button("Session beenden", use_container_width=True):
+        if st.button(t("end_button", lang), use_container_width=True):
             if st.session_state.session and st.session_state.provider:
-                with st.spinner("KAIA reflektiert die Session..."):
+                with st.spinner(t("end_spinner", lang)):
                     store.close_session(st.session_state.session, p)
                     analyzer = SessionAnalyzer(memory)
                     analyzer.analyze_and_save(
@@ -198,24 +211,24 @@ with st.sidebar:
 
 # ── Kein Profil ────────────────────────────────────────────────────────────────
 if not st.session_state.profile:
-    st.info("Richte dein Profil in der Sidebar ein, um mit KAIA zu sprechen.")
+    st.info(t("no_profile_info", lang))
     st.stop()
 
 # ── Voice-Modus: Gesprächsansicht ──────────────────────────────────────────────
 if st.session_state.voice_mode:
-    _STATE_LABELS = {
-        "ready":    "🎙️  Bereit — nimm deine Aufnahme auf",
-        "thinking": "💭  KAIA denkt...",
-        "speaking": "🔊  KAIA spricht...",
-    }
-    st.info(_STATE_LABELS.get(st.session_state.kaia_state, ""))
+    _state_key = {
+        "ready":    "voice_ready",
+        "thinking": "voice_thinking",
+        "speaking": "voice_speaking",
+    }.get(st.session_state.kaia_state, "voice_ready")
+    st.info(t(_state_key, lang))
 
-    # Audio aus letzter Antwort abspielen (wird nach einem Render gelöscht)
+    # Audio aus letzter Antwort abspielen
     if st.session_state.last_audio:
         st.audio(st.session_state.last_audio, format="audio/mp3", autoplay=True)
         st.session_state.last_audio = None
 
-    # Letzten Austausch anzeigen (kompakt)
+    # Letzten Austausch anzeigen
     if st.session_state.messages:
         for msg in st.session_state.messages[-2:]:
             with st.chat_message(msg["role"]):
@@ -223,26 +236,25 @@ if st.session_state.voice_mode:
 
     st.divider()
 
-    # Mikrofon — Key wechselt nach jeder Aufnahme → Widget wird zurückgesetzt
     audio_key = f"mic_{st.session_state.audio_counter}"
     if st.session_state.kaia_state == "ready":
-        audio_bytes = st.audio_input("⏺  Aufnehmen und abspielen zum Senden", key=audio_key)
+        audio_bytes = st.audio_input(t("mic_label", lang), key=audio_key)
     else:
-        st.audio_input("⏺  Aufnehmen und abspielen zum Senden", key=audio_key, disabled=True)
+        st.audio_input(t("mic_label", lang), key=audio_key, disabled=True)
         audio_bytes = None
 
     user_input = None
     if audio_bytes:
-        st.session_state.audio_counter += 1   # Widget zurücksetzen für nächste Runde
+        st.session_state.audio_counter += 1
         stt = st.session_state.stt_provider
         if stt:
-            with st.spinner("Erkenne Sprache..."):
+            with st.spinner(t("stt_spinner", lang)):
                 try:
                     result = stt.transcribe(audio_bytes.read())
                     user_input = result.text
-                    st.caption(f'Erkannt: *"{user_input}"*')
+                    st.caption(t("stt_recognized", lang, text=user_input))
                 except Exception as e:
-                    st.error(f"Spracherkennung fehlgeschlagen: {e}")
+                    st.error(t("stt_error", lang, error=e))
                     st.session_state.kaia_state = "ready"
 
 # ── Text-Modus: Chat-Ansicht ───────────────────────────────────────────────────
@@ -250,8 +262,7 @@ else:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
-
-    user_input = st.chat_input("Schreib mit KAIA...")
+    user_input = st.chat_input(t("chat_input", lang))
 
 # ── LLM-Aufruf ────────────────────────────────────────────────────────────────
 if user_input:
@@ -279,10 +290,10 @@ Current mode: {profile.current_mode.value}
 {memory_context}
 
 Be warm, curious, and encouraging. Ask one good question rather than giving long explanations.
-Respond in the same language the learner uses."""
+{t("system_prompt_lang", lang)}"""
 
     st.session_state.kaia_state = "thinking"
-    with st.spinner("KAIA denkt..."):
+    with st.spinner(t("llm_spinner", lang)):
         try:
             response = provider.complete(history, system_prompt)
 
@@ -290,7 +301,6 @@ Respond in the same language the learner uses."""
                 "role": "assistant",
                 "content": response.content,
             })
-
             store.add_message(session, "user", user_input)
             store.add_message(
                 session, "assistant", response.content,
@@ -298,22 +308,20 @@ Respond in the same language the learner uses."""
                 latency_ms=response.latency_ms or 0,
             )
 
-            # Im Text-Modus sofort anzeigen
             if not st.session_state.voice_mode:
                 with st.chat_message("assistant"):
                     st.markdown(response.content)
 
-            # TTS — Audio in session_state speichern, wird beim nächsten Render abgespielt
             if tts:
                 st.session_state.kaia_state = "speaking"
                 try:
                     synthesis = tts.synthesize(response.content)
                     st.session_state.last_audio = synthesis.audio_bytes
                 except Exception as e:
-                    st.warning(f"Sprachausgabe fehlgeschlagen: {e}")
+                    st.warning(t("tts_error", lang, error=e))
 
         except Exception as e:
-            st.error(f"Fehler: {e}")
+            st.error(t("llm_error", lang, error=e))
 
     st.session_state.kaia_state = "ready"
     st.rerun()
