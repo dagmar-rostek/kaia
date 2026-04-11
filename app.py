@@ -11,7 +11,7 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 from providers import get_provider, Message
-from core import ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode, t
+from core import ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode, t, build_system_prompt
 from voice import get_stt_provider, get_tts_provider, AVAILABLE_TTS_PROVIDERS
 
 load_dotenv()
@@ -337,18 +337,11 @@ if user_input:
     history = [Message(role=m["role"], content=m["content"]) for m in st.session_state.messages]
 
     memory_context = memory.build_memory_context(profile.user_id)
-    system_prompt = f"""You are KAIA — a Kinetic AI Agent.
-You are an empathic learning companion. Your role is not to lecture,
-but to guide the learner to discover answers themselves through thoughtful questions.
-
-Learner name: {profile.name}
-Context: {profile.context or 'general learning'}
-Current mode: {profile.current_mode.value}
-
-{memory_context}
-
-Be warm, curious, and encouraging. Ask one good question rather than giving long explanations.
-{t("system_prompt_lang", lang)}"""
+    system_prompt = build_system_prompt(
+        profile=profile,
+        memory_context=memory_context,
+        language=lang,
+    )
 
     st.session_state.kaia_state = "thinking"
     with st.spinner(t("llm_spinner", lang)):
