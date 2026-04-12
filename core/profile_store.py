@@ -201,20 +201,23 @@ class ProfileStore:
                     (user_id, name, context, current_mode, dominant_style,
                      traits, snapshots, session_count, total_messages,
                      identified_strengths, identified_blind_spots,
+                     onboarding_complete, problem_solving_profile,
                      created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
-                    name                   = excluded.name,
-                    context                = excluded.context,
-                    current_mode           = excluded.current_mode,
-                    dominant_style         = excluded.dominant_style,
-                    traits                 = excluded.traits,
-                    snapshots              = excluded.snapshots,
-                    session_count          = excluded.session_count,
-                    total_messages         = excluded.total_messages,
-                    identified_strengths   = excluded.identified_strengths,
-                    identified_blind_spots = excluded.identified_blind_spots,
-                    updated_at             = excluded.updated_at
+                    name                    = excluded.name,
+                    context                 = excluded.context,
+                    current_mode            = excluded.current_mode,
+                    dominant_style          = excluded.dominant_style,
+                    traits                  = excluded.traits,
+                    snapshots               = excluded.snapshots,
+                    session_count           = excluded.session_count,
+                    total_messages          = excluded.total_messages,
+                    identified_strengths    = excluded.identified_strengths,
+                    identified_blind_spots  = excluded.identified_blind_spots,
+                    onboarding_complete     = excluded.onboarding_complete,
+                    problem_solving_profile = excluded.problem_solving_profile,
+                    updated_at              = excluded.updated_at
                 """,
                 (
                     profile.user_id,
@@ -228,6 +231,8 @@ class ProfileStore:
                     profile.total_messages,
                     json_encode(profile.identified_strengths),
                     json_encode(profile.identified_blind_spots),
+                    1 if profile.onboarding_complete else 0,
+                    profile.problem_solving_profile,
                     profile.created_at,
                     profile.updated_at,
                 ),
@@ -280,6 +285,8 @@ class ProfileStore:
             total_messages=row["total_messages"],
             identified_strengths=json_decode(row["identified_strengths"]) or [],
             identified_blind_spots=json_decode(row["identified_blind_spots"]) or [],
+            onboarding_complete=bool(row.get("onboarding_complete", 0)),
+            problem_solving_profile=row.get("problem_solving_profile", ""),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )

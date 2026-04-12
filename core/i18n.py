@@ -109,6 +109,29 @@ TRANSLATIONS = {
         "tts_error":            "Sprachausgabe fehlgeschlagen: {error}",
         "llm_error":            "Fehler: {error}",
 
+        # Auswertungsseite
+        "auswertung_title":        "Dein Lernprofil",
+        "auswertung_locked":       "Die Auswertung ist nach Abschluss des Erstgesprächs verfügbar.",
+        "auswertung_radar_title":  "Selbstwirksamkeitsprofil",
+        "auswertung_strengths":    "Deine Stärken",
+        "auswertung_blindspots":   "Wachstumsfelder",
+        "auswertung_psp":          "Dein Problemlöseprofil",
+        "auswertung_gse_total":    "GSE-Gesamtscore",
+        "auswertung_gse_max":      "von 40 möglichen Punkten",
+        "auswertung_no_profile":   "Bitte starte eine Session um dein Profil zu laden.",
+        "auswertung_gse_dims": [
+            "Widerstände überwinden",
+            "Probleme durch Bemühen lösen",
+            "Ziele verwirklichen",
+            "Unerwartete Situationen",
+            "Überraschungen bewältigen",
+            "Gelassenheit & Vertrauen",
+            "Allgemeine Resilienz",
+            "Lösungen finden",
+            "Neues bewältigen",
+            "Eigenständigkeit",
+        ],
+
         # System-Prompt Sprache
         "system_prompt_lang":   "Antworte immer auf Deutsch.",
     },
@@ -212,6 +235,29 @@ TRANSLATIONS = {
         "tts_spinner":          "KAIA is speaking...",
         "tts_error":            "Voice output failed: {error}",
         "llm_error":            "Error: {error}",
+
+        # Profile page
+        "auswertung_title":        "Your Learning Profile",
+        "auswertung_locked":       "The profile is available after completing the initial conversation.",
+        "auswertung_radar_title":  "Self-Efficacy Profile",
+        "auswertung_strengths":    "Your Strengths",
+        "auswertung_blindspots":   "Growth Areas",
+        "auswertung_psp":          "Your Problem-Solving Profile",
+        "auswertung_gse_total":    "GSE Total Score",
+        "auswertung_gse_max":      "out of 40 possible points",
+        "auswertung_no_profile":   "Please start a session to load your profile.",
+        "auswertung_gse_dims": [
+            "Overcoming obstacles",
+            "Solving problems through effort",
+            "Achieving goals",
+            "Unexpected situations",
+            "Coping with surprises",
+            "Calm & self-trust",
+            "General resilience",
+            "Finding solutions",
+            "Handling new things",
+            "Independence",
+        ],
 
         # System prompt language
         "system_prompt_lang":   "Always respond in English.",

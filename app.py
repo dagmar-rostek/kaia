@@ -12,9 +12,8 @@ import streamlit as st
 from dotenv import load_dotenv
 from providers import get_provider, Message
 from core import (ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode,
-                  t, build_system_prompt, build_onboarding_prompt, SurveyStore,
-                  GSE_ITEMS_DE, GSE_ITEMS_EN,
-                  GSE_SCALE_DE, GSE_SCALE_EN)
+                  t, build_system_prompt, build_onboarding_prompt, OnboardingAnalyzer,
+                  SurveyStore, GSE_ITEMS_DE, GSE_ITEMS_EN, GSE_SCALE_DE, GSE_SCALE_EN)
 from voice import get_stt_provider, get_tts_provider, AVAILABLE_TTS_PROVIDERS
 
 load_dotenv()
@@ -438,12 +437,14 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     history = [Message(role=m["role"], content=m["content"]) for m in st.session_state.messages]
 
+    is_onboarding = (profile.session_count == 1 and not profile.onboarding_complete)
+
     # Onboarding: History beginnt mit KAIAs Eröffnungsnachricht (assistant).
     # Die meisten LLM-APIs erfordern jedoch user als erste Rolle → Trigger vorne einsetzen.
-    if profile.session_count == 1 and history and history[0].role == "assistant":
+    if is_onboarding and history and history[0].role == "assistant":
         history = [Message(role="user", content="__start__")] + history
 
-    if profile.session_count == 1:
+    if is_onboarding:
         system_prompt = build_onboarding_prompt(
             name=profile.name,
             context=profile.context or "",
@@ -462,25 +463,54 @@ if user_input:
         try:
             response = provider.complete(history, system_prompt)
 
+            # [ONBOARDING_COMPLETE] erkennen und Analyse triggern
+            onboarding_just_finished = (
+                is_onboarding and "[ONBOARDING_COMPLETE]" in response.content
+            )
+            # Token aus der angezeigten Antwort entfernen
+            display_content = response.content.replace("[ONBOARDING_COMPLETE]", "").strip()
+
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": response.content,
+                "content": display_content,
             })
             store.add_message(session, "user", user_input)
             store.add_message(
-                session, "assistant", response.content,
+                session, "assistant", display_content,
                 tokens=response.tokens_used or 0,
                 latency_ms=response.latency_ms or 0,
             )
 
+            if onboarding_just_finished:
+                with st.spinner("KAIA analysiert dein Profil..." if lang == "de" else "KAIA is analyzing your profile..."):
+                    analyzer = OnboardingAnalyzer()
+                    result = analyzer.analyze(
+                        messages=st.session_state.messages,
+                        provider=provider,
+                        language=lang,
+                    )
+                    # GSE-Score speichern
+                    survey_store = st.session_state.survey_store
+                    survey_store.save_survey(
+                        profile.user_id, "gse", "pre",
+                        {str(k): v for k, v in result["gse_scores"].items()}
+                    )
+                    # Profil aktualisieren
+                    profile.identified_strengths    = result["strengths"]
+                    profile.identified_blind_spots  = result["blind_spots"]
+                    profile.problem_solving_profile = result["problem_solving_profile"]
+                    profile.onboarding_complete     = True
+                    store.save_profile(profile)
+                    st.session_state.profile = profile
+
             if not st.session_state.voice_mode:
                 with st.chat_message("assistant"):
-                    st.markdown(response.content)
+                    st.markdown(display_content)
 
             if tts:
                 st.session_state.kaia_state = "speaking"
                 try:
-                    synthesis = tts.synthesize(response.content)
+                    synthesis = tts.synthesize(display_content)
                     st.session_state.last_audio = synthesis.audio_bytes
                 except Exception as e:
                     st.warning(t("tts_error", lang, error=e))

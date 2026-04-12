@@ -83,6 +83,17 @@ _SCHEMA = [
     "CREATE INDEX IF NOT EXISTS idx_surveys_user  ON surveys(user_id)",
 ]
 
+# Spalten-Migrationen — sicher wiederholbar (try/except für SQLite, IF NOT EXISTS für PG)
+_MIGRATIONS_SQLITE = [
+    "ALTER TABLE users ADD COLUMN onboarding_complete INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE users ADD COLUMN problem_solving_profile TEXT NOT NULL DEFAULT ''",
+]
+
+_MIGRATIONS_PG = [
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN NOT NULL DEFAULT FALSE",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS problem_solving_profile TEXT NOT NULL DEFAULT ''",
+]
+
 
 # ── Hilfsfunktion ──────────────────────────────────────────────────────────────
 
@@ -179,6 +190,8 @@ def init_db(db_path: Path | None = None) -> None:
         cur = conn.cursor()
         for stmt in _SCHEMA:
             cur.execute(stmt)
+        for stmt in _MIGRATIONS_PG:
+            cur.execute(stmt)
         cur.close()
         conn.close()
     else:
@@ -189,6 +202,11 @@ def init_db(db_path: Path | None = None) -> None:
         conn.execute("PRAGMA foreign_keys=ON")
         for stmt in _SCHEMA:
             conn.execute(stmt)
+        for stmt in _MIGRATIONS_SQLITE:
+            try:
+                conn.execute(stmt)
+            except Exception:
+                pass  # Spalte existiert bereits
         conn.commit()
         conn.close()
 

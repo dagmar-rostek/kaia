@@ -85,6 +85,10 @@ class UserProfile:
     identified_strengths: list[str] = field(default_factory=list)
     identified_blind_spots: list[str] = field(default_factory=list)
 
+    # Onboarding
+    onboarding_complete: bool = False
+    problem_solving_profile: str = ""  # 2-3 sentence narrative from onboarding analysis
+
 
 @dataclass
 class SessionRecord:
