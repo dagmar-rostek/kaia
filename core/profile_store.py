@@ -124,6 +124,44 @@ class ProfileStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def list_profiles_full(self) -> list[dict]:
+        """Gibt alle Profildaten zurück — für Admin-Dashboard."""
+        with get_connection(self._db_path) as conn:
+            rows = conn.execute(
+                """SELECT user_id, name, context, current_mode, session_count,
+                          total_messages, onboarding_complete, problem_solving_profile,
+                          identified_strengths, identified_blind_spots,
+                          created_at, updated_at
+                   FROM users ORDER BY updated_at DESC"""
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_all_sessions(self) -> list[dict]:
+        """Gibt alle Sessions mit Nutzernamen zurück — für Admin-Dashboard."""
+        with get_connection(self._db_path) as conn:
+            rows = conn.execute(
+                """SELECT s.session_id, s.user_id, u.name, s.provider, s.model,
+                          s.message_count, s.total_tokens, s.avg_latency_ms,
+                          s.mode_at_start, s.mode_at_end,
+                          s.started_at, s.ended_at
+                   FROM sessions s
+                   JOIN users u ON s.user_id = u.user_id
+                   ORDER BY s.started_at DESC"""
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_all_observations(self) -> list[dict]:
+        """Gibt alle Observations mit Nutzernamen zurück — für Admin-Dashboard."""
+        with get_connection(self._db_path) as conn:
+            rows = conn.execute(
+                """SELECT o.category, o.content, o.sentiment_score, o.mode,
+                          o.created_at, u.name
+                   FROM observations o
+                   JOIN users u ON o.user_id = u.user_id
+                   ORDER BY o.created_at DESC"""
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     # ── Sessions ───────────────────────────────────────────────────────────────
 
     def start_session(self, profile: UserProfile, provider: str, model: str) -> SessionRecord:
