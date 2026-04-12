@@ -217,6 +217,29 @@ class ProfileStore:
         self._save_session(session)
         self.save_profile(profile)
 
+    def get_onboarding_messages(self, user_id: str) -> list[dict]:
+        """
+        Gibt alle gespeicherten Nachrichten aus früheren Onboarding-Sessions zurück.
+        Wird genutzt um das Onboarding nach Unterbrechung fortzusetzen.
+        Filtert __start__-Trigger und leere Nachrichten heraus.
+        """
+        with get_connection(self._db_path) as conn:
+            rows = conn.execute(
+                """SELECT messages FROM sessions
+                   WHERE user_id = ?
+                   ORDER BY started_at ASC""",
+                (user_id,),
+            ).fetchall()
+
+        all_messages = []
+        for row in rows:
+            msgs = json_decode(dict(row)["messages"]) or []
+            for m in msgs:
+                content = m.get("content", "").strip()
+                if content and content != "__start__":
+                    all_messages.append({"role": m["role"], "content": content})
+        return all_messages
+
     def load_session(self, session_id: str) -> SessionRecord:
         """Lädt einen Session-Record anhand der session_id."""
         with get_connection(self._db_path) as conn:

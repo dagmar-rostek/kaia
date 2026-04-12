@@ -235,13 +235,20 @@ with st.sidebar:
                     except Exception as e:
                         st.warning(f"TTS: {e}")
 
-                st.session_state.profile      = profile
-                st.session_state.session      = session
-                st.session_state.provider     = llm_provider
-                st.session_state.stt_provider = stt
-                st.session_state.tts_provider = tts
-                st.session_state.messages     = []
-                st.session_state.kaia_state   = "ready"
+                # Onboarding-History wiederherstellen wenn noch nicht abgeschlossen
+                if not profile.onboarding_complete and profile.session_count > 1:
+                    prior_messages = store.get_onboarding_messages(profile.user_id)
+                else:
+                    prior_messages = []
+
+                st.session_state.profile            = profile
+                st.session_state.session            = session
+                st.session_state.provider           = llm_provider
+                st.session_state.stt_provider       = stt
+                st.session_state.tts_provider       = tts
+                st.session_state.messages           = prior_messages
+                st.session_state.kaia_state         = "ready"
+                st.session_state.onboarding_started = bool(prior_messages)
                 st.success(t("start_success", lang, n=profile.session_count, provider=provider_name))
             except Exception as e:
                 st.error(t("start_fail", lang, error=e))
