@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from providers import get_provider, Message
 from core import (ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode,
                   t, build_system_prompt, build_onboarding_prompt, OnboardingAnalyzer,
-                  SurveyStore, GSE_ITEMS_DE, GSE_ITEMS_EN, GSE_SCALE_DE, GSE_SCALE_EN)
+                  SurveyStore)
 from voice import get_stt_provider, get_tts_provider, AVAILABLE_TTS_PROVIDERS
 
 load_dotenv()
@@ -72,10 +72,6 @@ if "survey_store"         not in st.session_state:
     st.session_state.survey_store = None
 if "onboarding_started"   not in st.session_state:
     st.session_state.onboarding_started = False
-if "show_post_first_gse"  not in st.session_state:
-    st.session_state.show_post_first_gse = False
-if "post_gse_user_id"     not in st.session_state:
-    st.session_state.post_gse_user_id = None
 
 store  = st.session_state.store
 memory = st.session_state.memory
@@ -262,7 +258,6 @@ with st.sidebar:
             st.caption(f"{t('profile_tts', lang)} {st.session_state.tts_provider.name}")
 
         if st.button(t("end_button", lang), use_container_width=True):
-            is_first_session = (p.session_count == 1)
             if st.session_state.session and st.session_state.provider:
                 with st.spinner(t("end_spinner", lang)):
                     store.close_session(st.session_state.session, p)
@@ -272,12 +267,6 @@ with st.sidebar:
                         profile=p,
                         provider=st.session_state.provider,
                     )
-            # Nach erster Session: GSE-Fragebogen zeigen
-            if is_first_session and not st.session_state.survey_store.has_survey(
-                p.user_id, "gse", "pre"
-            ):
-                st.session_state.show_post_first_gse = True
-                st.session_state.post_gse_user_id    = p.user_id
             st.session_state.profile            = None
             st.session_state.session            = None
             st.session_state.provider           = None
@@ -290,61 +279,15 @@ with st.sidebar:
 
 # ── Kein Profil ────────────────────────────────────────────────────────────────
 if not st.session_state.profile:
-    # GSE nach erster Session — erscheint einmalig nach dem ersten Gespräch
-    if st.session_state.show_post_first_gse and st.session_state.post_gse_user_id:
-        survey_store = st.session_state.survey_store
-        gse_user_id  = st.session_state.post_gse_user_id
-
-        st.title(t("survey_gse_title", lang))
-        st.info(
-            "Danke für dein erstes Gespräch mit KAIA! "
-            "Bevor du gehst, bitten wir dich, einen kurzen Fragebogen zur allgemeinen Selbstwirksamkeit auszufüllen (ca. 2 Minuten). "
-            "Deine Antworten bilden die wissenschaftliche Baseline für die Studie."
-            if lang == "de" else
-            "Thank you for your first conversation with KAIA! "
-            "Before you go, please fill in a short questionnaire on general self-efficacy (about 2 minutes). "
-            "Your answers form the scientific baseline for the study."
-        )
-        st.caption(t("survey_gse_info", lang))
-
-        gse_items = GSE_ITEMS_DE if lang == "de" else GSE_ITEMS_EN
-        gse_scale = GSE_SCALE_DE if lang == "de" else GSE_SCALE_EN
-
-        with st.form("post_first_gse_form"):
-            gse_responses = {}
-            for i, item in enumerate(gse_items):
-                gse_responses[i] = st.radio(
-                    f"{i+1}. {item}",
-                    options=list(gse_scale.keys()),
-                    format_func=lambda x, s=gse_scale: s[x],
-                    index=None,
-                    horizontal=True,
-                    key=f"gse_{i}",
-                )
-            submitted = st.form_submit_button(
-                t("survey_submit", lang), type="primary", use_container_width=True
-            )
-
-        if submitted:
-            if any(v is None for v in gse_responses.values()):
-                st.error(t("survey_error", lang))
-            else:
-                survey_store.save_survey(gse_user_id, "gse", "pre", gse_responses)
-                st.success(t("survey_done", lang))
-                st.session_state.show_post_first_gse = False
-                st.session_state.post_gse_user_id    = None
-                st.rerun()
-        st.stop()
-
     st.info(t("no_profile_info", lang))
     st.stop()
 
 survey_store = st.session_state.survey_store
 profile      = st.session_state.profile
 
-# ── Onboarding: KAIA startet automatisch das erste Gespräch ───────────────────
+# ── Onboarding: KAIA startet automatisch — läuft bis onboarding_complete ──────
 if (
-    profile.session_count == 1
+    not profile.onboarding_complete
     and not st.session_state.onboarding_started
     and not st.session_state.messages
 ):
@@ -437,7 +380,7 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     history = [Message(role=m["role"], content=m["content"]) for m in st.session_state.messages]
 
-    is_onboarding = (profile.session_count == 1 and not profile.onboarding_complete)
+    is_onboarding = not profile.onboarding_complete
 
     # Onboarding: History beginnt mit KAIAs Eröffnungsnachricht (assistant).
     # Die meisten LLM-APIs erfordern jedoch user als erste Rolle → Trigger vorne einsetzen.
