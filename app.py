@@ -266,7 +266,7 @@ with st.sidebar:
             if st.session_state.session and st.session_state.provider:
                 with st.spinner(t("end_spinner", lang)):
                     store.close_session(st.session_state.session, p)
-                    analyzer = SessionAnalyzer(memory)
+                    analyzer = SessionAnalyzer(memory, survey_store=st.session_state.survey_store)
                     analyzer.analyze_and_save(
                         session=st.session_state.session,
                         profile=p,

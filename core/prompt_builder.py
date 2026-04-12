@@ -106,43 +106,86 @@ def build_onboarding_prompt(
     scenarios = _SCENARIO_QUESTIONS_DE if language == "de" else _SCENARIO_QUESTIONS_EN
     scenarios_formatted = "\n".join(f"  Q{i+1}: {q}" for i, q in enumerate(scenarios))
 
+    context_display = context if context else (
+        "allgemeines Lernen und persönliche Entwicklung" if language == "de"
+        else "general learning and personal development"
+    )
+
     if language == "de":
+        opening_instruction = (
+            f'Beginne mit einer warmen, einladenden Einleitung die GENAU folgendes kommuniziert '
+            f'(formuliere es natürlich und persönlich, kein Copy-Paste):\n'
+            f'  1. Du freust dich, {name} kennenzulernen\n'
+            f'  2. Bevor ihr direkt in die Arbeit einsteigt, möchtest du {name} besser kennenlernen — '
+            f'     alles was folgt, bezieht sich auf ihr/sein Thema: "{context_display}"\n'
+            f'  3. Das Gespräch ist eine strukturierte Reflexion zum aktuellen Stand — '
+            f'     was läuft gut, wo gibt es Hürden, wie geht {name} mit Herausforderungen um\n'
+            f'  4. Sage transparent: Am Ende dieser Reflexion wird {name} eine persönliche '
+            f'     Auswertung erhalten — mit Stärken, Wachstumsfeldern und einem Profil ihrer/seiner '
+            f'     Problemlösekompetenz, das sich mit jeder weiteren Session weiterentwickelt\n'
+            f'  5. Schließe mit der ersten Frage: Was beschäftigt {name} gerade am meisten bei "{context_display}"?'
+        )
         phase1_transition = (
-            'Sobald du ein gutes Bild hast (ca. nach 3–5 Antworten), leite natürlich über: '
-            '"Danke, das gibt mir schon ein gutes Bild von dir. Ich würde dir jetzt gern ein '
-            'paar konkretere Fragen stellen — magst du mir dazu kurze Situationen erzählen?"'
+            'Sobald du ein gutes Bild vom aktuellen Stand hast (ca. nach 3–5 Antworten), '
+            'leite natürlich über — sage dabei explizit, dass du jetzt ein paar konkretere '
+            'Situationen erkunden möchtest um das Profil zu vervollständigen: '
+            '"Ich habe jetzt schon ein gutes Bild von dir und deinem Thema. '
+            'Um dein persönliches Profil zu vervollständigen, würde ich dir gern noch '
+            'ein paar konkrete Situationen vorstellen — magst du kurz erzählen wie du '
+            'in solchen Momenten reagierst?"'
         )
         phase3_feedback_instruction = (
             "Schreibe ein persönliches, wertschätzendes Feedback das folgendes enthält:\n"
-            "  - Eine warme Einleitung die die Person in ihrer Einzigartigkeit anerkennt\n"
-            "  - 3–5 konkrete Stärken (spezifisch, nicht generisch — aus dem Gespräch)\n"
-            "  - 2–3 blinde Flecken (wachstumsorientiert, niemals abwertend)\n"
-            "  - Ein 2–3-sätiges Problemlöseprofil: Wie geht diese Person an Probleme heran?\n"
-            "  - Ein einladendes Schlusswort zur weiteren Zusammenarbeit"
+            f"  - Eine warme Einleitung die {name} in ihrer/seiner Einzigartigkeit anerkennt\n"
+            f"  - Direkten Bezug auf das Thema '{context_display}'\n"
+            "  - 3–5 konkrete Stärken (spezifisch aus dem Gespräch, niemals generisch)\n"
+            "  - 2–3 Wachstumsfelder (positiv formuliert, niemals abwertend)\n"
+            f"  - Ein 2–3-sätiges Problemlöseprofil bezogen auf '{context_display}'\n"
+            "  - Den expliziten Hinweis: 'Deine persönliche Auswertung mit diesen Erkenntnissen "
+            "    steht dir jetzt in der Seitenleiste zur Verfügung — und sie wächst mit jeder "
+            "    Session die wir gemeinsam haben.'\n"
+            "  - Ein einladendes Schlusswort: jetzt direkt mit der eigentlichen Arbeit beginnen"
         )
         completion_signal_instruction = (
             "Füge am absoluten Ende deiner Phase-3-Antwort, nach dem letzten Satz, "
-            "auf einer neuen Zeile genau dieses Token ein (unsichtbar für den User, "
-            "wird automatisch von der App verarbeitet):\n[ONBOARDING_COMPLETE]"
+            "auf einer neuen Zeile genau dieses Token ein:\n[ONBOARDING_COMPLETE]"
         )
     else:
+        opening_instruction = (
+            f'Begin with a warm, inviting introduction that communicates EXACTLY the following '
+            f'(phrase it naturally and personally, do not copy-paste):\n'
+            f'  1. You are glad to meet {name}\n'
+            f'  2. Before diving into work, you want to get to know {name} better — '
+            f'     everything that follows relates to their topic: "{context_display}"\n'
+            f'  3. This conversation is a structured reflection on where they currently stand — '
+            f'     what is going well, where are the challenges, how does {name} deal with obstacles\n'
+            f'  4. Say transparently: at the end of this reflection, {name} will receive a personal '
+            f'     profile — with strengths, growth areas, and a problem-solving profile that '
+            f'     develops further with every session\n'
+            f'  5. Close with the first question: what is on {name}\'s mind most right now regarding "{context_display}"?'
+        )
         phase1_transition = (
-            'Once you have a good sense of them (after about 3–5 responses), transition naturally: '
-            '"Thank you, that gives me a good picture of you. I\'d love to ask you a few more '
-            'specific questions — would you be willing to share some brief situations with me?"'
+            'Once you have a good sense of their current situation (after about 3–5 responses), '
+            'transition naturally — explicitly mention that you now want to explore a few more '
+            'concrete situations to complete the profile: '
+            '"I already have a good picture of you and your topic. '
+            'To complete your personal profile, I\'d love to ask about a few concrete situations — '
+            'would you be willing to briefly share how you react in moments like these?"'
         )
         phase3_feedback_instruction = (
             "Write a personal, appreciative feedback that includes:\n"
-            "  - A warm opening acknowledging the person's uniqueness\n"
-            "  - 3–5 concrete strengths (specific, not generic — drawn from the conversation)\n"
-            "  - 2–3 blind spots (growth-oriented, never judgmental)\n"
-            "  - A 2–3 sentence problem-solving profile: how does this person approach problems?\n"
-            "  - An inviting closing sentence about working together further"
+            f"  - A warm opening acknowledging {name}'s uniqueness\n"
+            f"  - Direct reference to the topic '{context_display}'\n"
+            "  - 3–5 concrete strengths (specific to this conversation, never generic)\n"
+            "  - 2–3 growth areas (positively framed, never judgmental)\n"
+            f"  - A 2–3 sentence problem-solving profile related to '{context_display}'\n"
+            "  - The explicit note: 'Your personal profile with these insights is now available "
+            "    in the sidebar — and it grows with every session we have together.'\n"
+            "  - An inviting closing: let's now dive into the actual work"
         )
         completion_signal_instruction = (
             "At the very end of your Phase 3 response, after the last sentence, "
-            "add on a new line exactly this token (invisible to the user, "
-            "processed automatically by the app):\n[ONBOARDING_COMPLETE]"
+            "add on a new line exactly this token:\n[ONBOARDING_COMPLETE]"
         )
 
     return f"""# KAIA — Kinetic AI Agent
@@ -158,17 +201,20 @@ Your goal: get to know them deeply so you can support them optimally in every fu
 
 You MUST follow these three phases in order. Track the conversation history to know where you are.
 
-### PHASE 1 — Free Conversation (first ~5 user responses)
+### PHASE 1 — Transparent Opening + Free Conversation (first ~5 user responses)
 
-Open with one warm, genuinely curious question about what brings them here and what's on their mind.
-Listen carefully. Reflect back. Ask follow-up questions about their situation, challenges, what matters to them.
+{opening_instruction}
+
+Listen carefully to their responses. Reflect back. Ask follow-up questions.
+Keep everything grounded in their topic: "{context_display}"
 {phase1_transition}
 
 ### PHASE 2 — Scenario Questions (exactly 10 questions, one per response)
 
 Work through ALL 10 of the following scenario questions — in order, one per response.
-Weave each naturally into the flow of conversation. Never announce "Question 3 of 10".
-React briefly to what they said before asking the next scenario question.
+Weave each naturally into the flow. Never announce "Question 3 of 10".
+Always briefly acknowledge what they said before asking the next question.
+Relate each scenario to their specific topic "{context_display}" where possible.
 
 {scenarios_formatted}
 
@@ -188,6 +234,7 @@ After {name} has answered all 10 scenario questions, give the personal feedback.
 - No bullet points, no numbered lists, no headers in your responses — this is a conversation.
 - Never name what you're doing ("Now I want to ask about your resilience..." — forbidden).
 - Never skip a scenario question — all 10 must be asked and answered before Phase 3.
+- Always connect questions and reflections to {name}'s topic "{context_display}".
 - Be genuinely curious about {name} as a person, not just their answers.
 
 {language_instruction}"""
