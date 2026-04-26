@@ -30,6 +30,19 @@ DATA_DIR    = Path(os.environ.get("DATA_DIR", "data"))
 DB_PATH     = DATA_DIR / "kaia.db"
 CHROMA_PATH = DATA_DIR / "chroma"
 
+# ── Pitch-Text — HIER ANPASSEN ─────────────────────────────────────────────────
+_PITCH_DE = """
+KAIA ist ein prototypischer KI-Lernbegleiter, entwickelt im Rahmen meiner Masterarbeit an der SRH Berlin.
+
+*[Hier 2–3 Sätze zur Masterthesis einfügen — was wird untersucht, warum ist es relevant?]*
+"""
+
+_PITCH_EN = """
+KAIA is a prototype AI learning companion, developed as part of my Master's thesis at SRH Berlin.
+
+*[Add 2–3 sentences about the thesis here — what is being investigated, why does it matter?]*
+"""
+
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="KAIA",
@@ -72,6 +85,12 @@ if "survey_store"         not in st.session_state:
     st.session_state.survey_store = None
 if "onboarding_started"   not in st.session_state:
     st.session_state.onboarding_started = False
+if "authenticated"        not in st.session_state:
+    st.session_state.authenticated = False
+if "context_step"         not in st.session_state:
+    st.session_state.context_step = False
+if "selected_provider"    not in st.session_state:
+    st.session_state.selected_provider = "claude"
 
 store  = st.session_state.store
 memory = st.session_state.memory
@@ -114,11 +133,6 @@ if not st.session_state.consent_given:
     show_consent_dialog()
     st.stop()
 
-# ── Header ─────────────────────────────────────────────────────────────────────
-st.title("✦ KAIA")
-st.caption(t("app_caption", lang))
-st.divider()
-
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
     # Sprache + Design — ganz oben, nebeneinander
@@ -148,11 +162,17 @@ with st.sidebar:
 
     st.header(t("setup_header", lang))
 
+    _provider_idx = ["claude", "mistral", "ollama"].index(
+        st.session_state.selected_provider
+        if st.session_state.selected_provider in ["claude", "mistral", "ollama"]
+        else "claude"
+    )
     provider_name = st.selectbox(
         t("llm_provider_label", lang),
         options=["claude", "mistral", "ollama"],
-        index=0,
+        index=_provider_idx,
     )
+    st.session_state.selected_provider = provider_name
 
     # ── Voice-Modus Toggle ─────────────────────────────────────────────────────
     st.divider()
@@ -181,7 +201,6 @@ with st.sidebar:
         if tts_name != tts_none:
             try:
                 tts_preview = get_tts_provider(tts_name)
-                # Stimmen nach Sprache filtern
                 voice_lang_filter = "de" if lang == "de" else "en"
                 voices = tts_preview.list_voices(language=voice_lang_filter) or tts_preview.list_voices()
                 voice_options = {v.name: v.voice_id for v in voices}
@@ -193,68 +212,10 @@ with st.sidebar:
     else:
         tts_name = t("tts_none", lang)
         tts_none = tts_name
+        selected_voice_id = None
 
-    # ── User Profile ───────────────────────────────────────────────────────────
-    st.divider()
-    st.subheader(t("profile_header", lang))
-    name    = st.text_input(t("name_label", lang), placeholder=t("name_placeholder", lang))
-    pin     = st.text_input(t("pin_label", lang), placeholder=t("pin_placeholder", lang),
-                            type="password", max_chars=4)
-    context = st.text_input(t("context_label", lang), placeholder=t("context_placeholder", lang))
-
-    if name and pin and len(pin) == 4 and pin.isdigit():
-        existing = store.find_by_pin(name, pin)
-        if existing:
-            st.caption(t("returning_user", lang, name=existing.name, n=existing.session_count + 1))
-
-    if st.button(t("start_button", lang), type="primary", use_container_width=True):
-        if not name:
-            st.error(t("start_error_name", lang))
-        elif not pin or len(pin) != 4 or not pin.isdigit():
-            st.error(t("start_error_pin", lang))
-        else:
-            try:
-                pin_uid = store.pin_user_id(name, pin)
-                profile = store.find_by_pin(name, pin)
-                if profile:
-                    if context and context != profile.context:
-                        profile.context = context
-                        store.save_profile(profile)
-                else:
-                    profile = store.create_profile(name=name, context=context, user_id=pin_uid)
-
-                llm_provider = get_provider(provider_name)
-                session = store.start_session(profile, llm_provider.name, llm_provider.model)
-
-                stt = get_stt_provider("whisper") if voice_mode else None
-
-                tts = None
-                if voice_mode and tts_name != tts_none:
-                    try:
-                        tts = get_tts_provider(tts_name, voice_id=selected_voice_id)
-                    except Exception as e:
-                        st.warning(f"TTS: {e}")
-
-                # Onboarding-History wiederherstellen wenn noch nicht abgeschlossen
-                if not profile.onboarding_complete and profile.session_count > 1:
-                    prior_messages = store.get_onboarding_messages(profile.user_id)
-                else:
-                    prior_messages = []
-
-                st.session_state.profile            = profile
-                st.session_state.session            = session
-                st.session_state.provider           = llm_provider
-                st.session_state.stt_provider       = stt
-                st.session_state.tts_provider       = tts
-                st.session_state.messages           = prior_messages
-                st.session_state.kaia_state         = "ready"
-                st.session_state.onboarding_started = bool(prior_messages)
-                st.success(t("start_success", lang, n=profile.session_count, provider=provider_name))
-            except Exception as e:
-                st.error(t("start_fail", lang, error=e))
-
-    # ── Aktives Profil ─────────────────────────────────────────────────────────
-    if st.session_state.profile:
+    # ── Aktives Profil (nur wenn eingeloggt + Session läuft) ──────────────────
+    if st.session_state.profile and st.session_state.session:
         st.divider()
         p = st.session_state.profile
         st.caption(f"{t('profile_user', lang)} {p.name}")
@@ -282,12 +243,114 @@ with st.sidebar:
             st.session_state.messages           = []
             st.session_state.kaia_state         = "ready"
             st.session_state.onboarding_started = False
+            st.session_state.authenticated      = False
+            st.session_state.context_step       = False
             st.rerun()
 
-# ── Kein Profil ────────────────────────────────────────────────────────────────
-if not st.session_state.profile:
-    st.info(t("no_profile_info", lang))
+        st.divider()
+        if st.button(t("logout_button", lang), use_container_width=True):
+            if st.session_state.session and st.session_state.provider:
+                store.close_session(st.session_state.session, p)
+            st.session_state.profile            = None
+            st.session_state.session            = None
+            st.session_state.provider           = None
+            st.session_state.stt_provider       = None
+            st.session_state.tts_provider       = None
+            st.session_state.messages           = []
+            st.session_state.kaia_state         = "ready"
+            st.session_state.onboarding_started = False
+            st.session_state.authenticated      = False
+            st.session_state.context_step       = False
+            st.rerun()
+
+# ── Landing-Page / Login / Registrierung ──────────────────────────────────────
+if not st.session_state.authenticated:
+    st.title("✦ KAIA")
+    st.caption(t("landing_subtitle", lang))
+    st.markdown(_PITCH_DE if lang == "de" else _PITCH_EN)
+    st.divider()
+
+    tab_login, tab_reg = st.tabs([t("login_tab", lang), t("register_tab", lang)])
+
+    with tab_login:
+        login_user = st.text_input(t("login_username", lang), key="login_user")
+        login_pw   = st.text_input(t("login_password", lang), type="password", key="login_pw")
+        if st.button(t("login_button", lang), type="primary", use_container_width=True, key="btn_login"):
+            profile = store.authenticate(login_user.strip(), login_pw)
+            if profile:
+                st.session_state.profile       = profile
+                st.session_state.authenticated = True
+                if not profile.context:
+                    st.session_state.context_step = True
+                else:
+                    # Session direkt starten
+                    _prov = get_provider(st.session_state.selected_provider)
+                    _sess = store.start_session(profile, _prov.name, _prov.model)
+                    _prior = store.get_onboarding_messages(profile.user_id) if not profile.onboarding_complete and profile.session_count > 1 else []
+                    st.session_state.session            = _sess
+                    st.session_state.provider           = _prov
+                    st.session_state.messages           = _prior
+                    st.session_state.onboarding_started = bool(_prior)
+                st.rerun()
+            else:
+                st.error(t("login_error", lang))
+
+    with tab_reg:
+        reg_email  = st.text_input(t("register_email", lang),    key="reg_email")
+        reg_user   = st.text_input(t("register_username", lang),  key="reg_user")
+        reg_pw     = st.text_input(t("register_password", lang),  type="password", key="reg_pw")
+        reg_pw2    = st.text_input(t("register_password2", lang), type="password", key="reg_pw2")
+        if st.button(t("register_button", lang), type="primary", use_container_width=True, key="btn_reg"):
+            if not reg_user.strip() or not reg_pw:
+                st.error(t("register_error_fields", lang))
+            elif reg_pw != reg_pw2:
+                st.error(t("register_error_match", lang))
+            elif len(reg_pw) < 6:
+                st.error(t("register_error_short", lang))
+            else:
+                try:
+                    profile = store.create_account(reg_email.strip(), reg_user.strip(), reg_pw)
+                    st.session_state.profile       = profile
+                    st.session_state.authenticated = True
+                    st.session_state.context_step  = True
+                    st.rerun()
+                except ValueError as e:
+                    st.error(str(e))
+
     st.stop()
+
+# ── Context-Step: Lernthema erfassen (nach erstem Login) ──────────────────────
+if st.session_state.context_step:
+    profile = st.session_state.profile
+    st.title("✦ KAIA")
+    st.markdown(f"### {t('context_greeting', lang, name=profile.name)}")
+    st.divider()
+    st.subheader(t("context_title", lang))
+    st.caption(t("context_caption", lang))
+    _ctx = st.text_input("", placeholder=t("context_placeholder", lang), key="ctx_input")
+    if st.button(t("context_button", lang), type="primary", use_container_width=True, key="btn_ctx"):
+        if not _ctx.strip():
+            st.error(t("context_error", lang))
+        else:
+            profile.context = _ctx.strip()
+            store.save_profile(profile)
+            st.session_state.profile      = profile
+            st.session_state.context_step = False
+            _prov  = get_provider(st.session_state.selected_provider)
+            _sess  = store.start_session(profile, _prov.name, _prov.model)
+            _prior = store.get_onboarding_messages(profile.user_id) if not profile.onboarding_complete and profile.session_count > 1 else []
+            st.session_state.session            = _sess
+            st.session_state.provider           = _prov
+            st.session_state.messages           = _prior
+            st.session_state.onboarding_started = bool(_prior)
+            st.rerun()
+    st.stop()
+
+# Safety-Guard: sollte session fehlen, zurück zur Landing-Page
+if not st.session_state.session:
+    st.session_state.authenticated = False
+    st.session_state.context_step  = False
+    st.rerun()
 
 survey_store = st.session_state.survey_store
 profile      = st.session_state.profile

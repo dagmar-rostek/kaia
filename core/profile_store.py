@@ -11,6 +11,7 @@ Die data/-Directory ist via .gitignore ausgeschlossen.
 """
 
 import hashlib
+import secrets
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,21 @@ from .models import (
     PersonalitySnapshot,
 )
 from dataclasses import asdict
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    key  = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000)
+    return f"{salt}:{key.hex()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    try:
+        salt, key_hex = stored.split(":", 1)
+        key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000)
+        return secrets.compare_digest(key.hex(), key_hex)
+    except Exception:
+        return False
 
 
 class ProfileStore:
@@ -115,6 +131,47 @@ class ProfileStore:
                 (name,),
             ).fetchone()
         return self._row_to_profile(dict(row)) if row else None
+
+    def create_account(self, email: str, username: str, password: str) -> "UserProfile":
+        """
+        Erstellt ein neues Konto mit gehashtem Passwort.
+        Wirft ValueError wenn der Benutzername bereits vergeben ist.
+        """
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT user_id FROM users WHERE LOWER(name) = LOWER(?)", (username,)
+            ).fetchone()
+        if row:
+            raise ValueError("Benutzername bereits vergeben.")
+
+        now = datetime.now().isoformat()
+        profile = UserProfile(
+            user_id=str(uuid.uuid4()),
+            created_at=now,
+            updated_at=now,
+            name=username,
+            email=email,
+            password_hash=_hash_password(password),
+        )
+        self._save_profile(profile)
+        return profile
+
+    def authenticate(self, username: str, password: str) -> "UserProfile | None":
+        """
+        Prüft Credentials und gibt das Profil zurück — oder None bei Fehler.
+        """
+        with get_connection(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE LOWER(name) = LOWER(?)", (username,)
+            ).fetchone()
+        if not row:
+            return None
+        profile = self._row_to_profile(dict(row))
+        if not profile.password_hash:
+            return None  # Legacy-User ohne Passwort
+        if _verify_password(password, profile.password_hash):
+            return profile
+        return None
 
     def list_profiles(self) -> list[dict]:
         """Gibt eine Kurzübersicht aller Profile zurück."""
@@ -263,8 +320,9 @@ class ProfileStore:
                      traits, snapshots, session_count, total_messages,
                      identified_strengths, identified_blind_spots,
                      onboarding_complete, problem_solving_profile,
+                     email, password_hash,
                      created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     name                    = excluded.name,
                     context                 = excluded.context,
@@ -278,6 +336,8 @@ class ProfileStore:
                     identified_blind_spots  = excluded.identified_blind_spots,
                     onboarding_complete     = excluded.onboarding_complete,
                     problem_solving_profile = excluded.problem_solving_profile,
+                    email                   = excluded.email,
+                    password_hash           = excluded.password_hash,
                     updated_at              = excluded.updated_at
                 """,
                 (
@@ -294,6 +354,8 @@ class ProfileStore:
                     json_encode(profile.identified_blind_spots),
                     1 if profile.onboarding_complete else 0,
                     profile.problem_solving_profile,
+                    profile.email,
+                    profile.password_hash,
                     profile.created_at,
                     profile.updated_at,
                 ),
@@ -348,6 +410,8 @@ class ProfileStore:
             identified_blind_spots=json_decode(row["identified_blind_spots"]) or [],
             onboarding_complete=bool(row.get("onboarding_complete", 0)),
             problem_solving_profile=row.get("problem_solving_profile", ""),
+            email=row.get("email", ""),
+            password_hash=row.get("password_hash", ""),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )

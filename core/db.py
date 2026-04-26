@@ -35,7 +35,9 @@ _SCHEMA = [
         identified_strengths   TEXT NOT NULL DEFAULT '[]',
         identified_blind_spots TEXT NOT NULL DEFAULT '[]',
         created_at      TEXT NOT NULL,
-        updated_at      TEXT NOT NULL
+        updated_at      TEXT NOT NULL,
+        email           TEXT NOT NULL DEFAULT '',
+        password_hash   TEXT NOT NULL DEFAULT ''
     )
     """,
     """
@@ -87,11 +89,15 @@ _SCHEMA = [
 _MIGRATIONS_SQLITE = [
     "ALTER TABLE users ADD COLUMN onboarding_complete INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE users ADD COLUMN problem_solving_profile TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''",
 ]
 
 _MIGRATIONS_PG = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS problem_solving_profile TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''",
 ]
 
 

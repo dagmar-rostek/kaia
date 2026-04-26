@@ -89,6 +89,10 @@ class UserProfile:
     onboarding_complete: bool = False
     problem_solving_profile: str = ""  # 2-3 sentence narrative from onboarding analysis
 
+    # Auth
+    email: str = ""
+    password_hash: str = ""
+
 
 @dataclass
 class SessionRecord:
