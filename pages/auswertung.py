@@ -19,9 +19,10 @@ from dotenv import load_dotenv
 
 from core import ProfileStore, SurveyStore, t
 
-load_dotenv()
+_ROOT = Path(__file__).parent.parent
+load_dotenv(_ROOT / ".env", override=True)
 
-DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
+DATA_DIR = Path(os.environ.get("DATA_DIR", str(_ROOT / "data")))
 DB_PATH  = DATA_DIR / "kaia.db"
 
 st.set_page_config(page_title="KAIA – Auswertung", page_icon="✦", layout="centered")

@@ -19,9 +19,10 @@ from core import ProfileStore, SurveyStore, t
 from core.db import get_connection, json_decode
 from core.i18n import TRANSLATIONS
 
-load_dotenv()
+_ROOT = Path(__file__).parent.parent
+load_dotenv(_ROOT / ".env", override=True)
 
-DATA_DIR       = Path(os.environ.get("DATA_DIR", "data"))
+DATA_DIR       = Path(os.environ.get("DATA_DIR", str(_ROOT / "data")))
 DB_PATH        = DATA_DIR / "kaia.db"
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "kaia-admin")
 
