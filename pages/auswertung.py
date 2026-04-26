@@ -56,8 +56,8 @@ profile      = st.session_state.get("profile")
 st.title("✦ " + t("auswertung_title", lang))
 st.divider()
 
-# ── Kein Profil ────────────────────────────────────────────────────────────────
-if not profile:
+# ── Nicht eingeloggt ──────────────────────────────────────────────────────────
+if not st.session_state.get("authenticated", False) or not profile:
     st.info(t("auswertung_no_profile", lang))
     st.stop()
 
