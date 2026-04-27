@@ -364,7 +364,7 @@ class ProfileStore:
                     profile.total_messages,
                     json_encode(profile.identified_strengths),
                     json_encode(profile.identified_blind_spots),
-                    1 if profile.onboarding_complete else 0,
+                    bool(profile.onboarding_complete),
                     profile.problem_solving_profile,
                     profile.email,
                     profile.password_hash,
