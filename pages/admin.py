@@ -18,12 +18,14 @@ from dotenv import load_dotenv
 from core import ProfileStore, SurveyStore, t
 from core.db import get_connection, json_decode
 from core.i18n import TRANSLATIONS
+from core.memory_store import MemoryStore
 
 _ROOT = Path(__file__).parent.parent
 load_dotenv(_ROOT / ".env", override=True)
 
 DATA_DIR       = Path(os.environ.get("DATA_DIR", str(_ROOT / "data")))
 DB_PATH        = DATA_DIR / "kaia.db"
+CHROMA_PATH    = DATA_DIR / "chroma"
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "kaia-admin")
 
 st.set_page_config(page_title="KAIA Admin", page_icon="⚙", layout="wide")
@@ -307,6 +309,31 @@ with tabs[1]:
                             score_str = f" · {score:+.2f}" if score is not None else ""
                             st.caption(f"`{cat}`{score_str} · {date}")
                             st.write(o.get("content", ""))
+
+            # DSGVO Art. 17 — Admin-Löschung
+            st.divider()
+            _del_key = f"admin_del_{p['user_id']}"
+            with st.expander(
+                f"{'Nutzer löschen' if lang == 'de' else 'Delete user'} — {p['name']}",
+            ):
+                st.warning(
+                    f"Löscht **alle** Daten von {p['name']} unwiderruflich."
+                    if lang == "de" else
+                    f"Permanently deletes **all** data for {p['name']}."
+                )
+                if st.button(
+                    f"{'Jetzt löschen' if lang == 'de' else 'Delete now'}: {p['name']}",
+                    type="primary",
+                    key=_del_key,
+                ):
+                    _mem = MemoryStore(chroma_path=CHROMA_PATH, db_path=DB_PATH)
+                    _mem.delete_user(p["user_id"])
+                    store.delete_profile(p["user_id"])
+                    st.success(
+                        f"{p['name']} wurde gelöscht." if lang == "de"
+                        else f"{p['name']} has been deleted."
+                    )
+                    st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════

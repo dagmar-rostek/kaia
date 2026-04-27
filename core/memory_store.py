@@ -207,6 +207,22 @@ class MemoryStore:
 
     # ── Helpers ────────────────────────────────────────────────────────────────
 
+    def delete_user(self, user_id: str) -> None:
+        """
+        Löscht alle Daten eines Nutzers — ChromaDB-Collection + SQLite-Observations.
+        DSGVO Art. 17: Recht auf Löschung.
+        """
+        # ChromaDB-Collection löschen
+        collection_name = f"user_{user_id.replace('-', '_')}"
+        try:
+            self._client.delete_collection(collection_name)
+        except Exception:
+            pass  # Collection existierte nicht
+
+        # SQLite-Observations löschen
+        with get_connection(self._db_path) as conn:
+            conn.execute("DELETE FROM observations WHERE user_id = ?", (user_id,))
+
     def _get_collection(self, user_id: str):
         """
         Gibt die ChromaDB-Collection für einen User zurück.

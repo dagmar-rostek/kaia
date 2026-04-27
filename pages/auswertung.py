@@ -18,11 +18,13 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from core import ProfileStore, SurveyStore, t
+from core.memory_store import MemoryStore
 
 _ROOT = Path(__file__).parent.parent
 load_dotenv(_ROOT / ".env", override=True)
 
-DATA_DIR = Path(os.environ.get("DATA_DIR", str(_ROOT / "data")))
+DATA_DIR    = Path(os.environ.get("DATA_DIR", str(_ROOT / "data")))
+CHROMA_PATH = DATA_DIR / "chroma"
 DB_PATH  = DATA_DIR / "kaia.db"
 
 st.set_page_config(page_title="KAIA – Auswertung", page_icon="✦", layout="centered")
@@ -268,3 +270,38 @@ if obs_general:
 
 if not profile.problem_solving_profile and not obs_general:
     st.caption("—")
+
+# ── DSGVO Art. 17 — Recht auf Löschung ────────────────────────────────────────
+st.divider()
+_del_label = "Mein Konto löschen (DSGVO Art. 17)" if lang == "de" else "Delete my account (GDPR Art. 17)"
+with st.expander(_del_label):
+    st.warning(
+        "**Achtung:** Alle deine Daten werden unwiderruflich gelöscht — "
+        "Profil, alle Sessions, alle Messungen und das KI-Gedächtnis."
+        if lang == "de" else
+        "**Warning:** All your data will be permanently deleted — "
+        "profile, all sessions, all measurements, and the AI memory."
+    )
+    _confirm = st.checkbox(
+        "Ja, ich möchte mein Konto und alle meine Daten löschen." if lang == "de"
+        else "Yes, I want to delete my account and all my data.",
+        key="delete_confirm",
+    )
+    if st.button(
+        "Konto jetzt löschen" if lang == "de" else "Delete account now",
+        type="primary",
+        disabled=not _confirm,
+        key="btn_delete_account",
+    ):
+        _memory = MemoryStore(chroma_path=CHROMA_PATH, db_path=DB_PATH)
+        _memory.delete_user(profile.user_id)
+        store.delete_profile(profile.user_id)
+        # Session vollständig zurücksetzen
+        for _k in ["profile", "session", "provider", "messages",
+                   "authenticated", "context_step", "onboarding_started"]:
+            st.session_state[_k] = None if _k in ("profile", "session", "provider") else False if _k != "messages" else []
+        st.session_state.authenticated = False
+        st.success(
+            "Dein Konto wurde gelöscht." if lang == "de" else "Your account has been deleted."
+        )
+        st.rerun()

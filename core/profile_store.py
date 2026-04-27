@@ -173,6 +173,18 @@ class ProfileStore:
             return profile
         return None
 
+    def delete_profile(self, user_id: str) -> None:
+        """
+        Löscht alle personenbezogenen Daten eines Nutzers aus der Datenbank.
+        DSGVO Art. 17: Recht auf Löschung.
+        Reihenfolge: surveys → sessions → users (FK-Constraints).
+        ChromaDB-Daten müssen separat via MemoryStore.delete_user() gelöscht werden.
+        """
+        with get_connection(self._db_path) as conn:
+            conn.execute("DELETE FROM surveys      WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM sessions     WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM users        WHERE user_id = ?", (user_id,))
+
     def list_profiles(self) -> list[dict]:
         """Gibt eine Kurzübersicht aller Profile zurück."""
         with get_connection(self._db_path) as conn:
