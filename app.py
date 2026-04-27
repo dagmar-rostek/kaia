@@ -127,6 +127,10 @@ def show_consent_dialog():
     if st.button(t("consent_button", lang), type="primary", use_container_width=True):
         if checked:
             st.session_state.consent_given = True
+            # Sofort in DB speichern wenn Profil bereits geladen
+            if st.session_state.profile:
+                st.session_state.profile.consent_given = True
+                store.save_profile(st.session_state.profile)
             st.rerun()
         else:
             st.error(t("consent_must_check", lang))
@@ -282,6 +286,13 @@ if not st.session_state.authenticated:
             if profile:
                 st.session_state.profile       = profile
                 st.session_state.authenticated = True
+                # Consent aus DB laden — Dialog überspringen wenn bereits erteilt
+                if profile.consent_given:
+                    st.session_state.consent_given = True
+                elif st.session_state.consent_given:
+                    # Gerade in dieser Sitzung erteilt → in DB speichern
+                    profile.consent_given = True
+                    store.save_profile(profile)
                 if not profile.context:
                     st.session_state.context_step = True
                 else:
@@ -312,6 +323,10 @@ if not st.session_state.authenticated:
             else:
                 try:
                     profile = store.create_account(reg_email.strip(), reg_user.strip(), reg_pw)
+                    # Consent in DB speichern (wurde gerade erteilt)
+                    if st.session_state.consent_given:
+                        profile.consent_given = True
+                        store.save_profile(profile)
                     st.session_state.profile       = profile
                     st.session_state.authenticated = True
                     st.session_state.context_step  = True

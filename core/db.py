@@ -37,7 +37,8 @@ _SCHEMA = [
         created_at      TEXT NOT NULL,
         updated_at      TEXT NOT NULL,
         email           TEXT NOT NULL DEFAULT '',
-        password_hash   TEXT NOT NULL DEFAULT ''
+        password_hash   TEXT NOT NULL DEFAULT '',
+        consent_given   BOOLEAN NOT NULL DEFAULT FALSE
     )
     """,
     """
@@ -91,6 +92,7 @@ _MIGRATIONS_SQLITE = [
     "ALTER TABLE users ADD COLUMN problem_solving_profile TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN consent_given INTEGER NOT NULL DEFAULT 0",
 ]
 
 _MIGRATIONS_PG = [
@@ -98,6 +100,7 @@ _MIGRATIONS_PG = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS problem_solving_profile TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS consent_given BOOLEAN NOT NULL DEFAULT FALSE",
 ]
 
 

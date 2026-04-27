@@ -93,6 +93,9 @@ class UserProfile:
     email: str = ""
     password_hash: str = ""
 
+    # DSGVO
+    consent_given: bool = False
+
 
 @dataclass
 class SessionRecord:

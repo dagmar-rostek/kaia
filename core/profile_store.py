@@ -332,9 +332,9 @@ class ProfileStore:
                      traits, snapshots, session_count, total_messages,
                      identified_strengths, identified_blind_spots,
                      onboarding_complete, problem_solving_profile,
-                     email, password_hash,
+                     email, password_hash, consent_given,
                      created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     name                    = excluded.name,
                     context                 = excluded.context,
@@ -350,6 +350,7 @@ class ProfileStore:
                     problem_solving_profile = excluded.problem_solving_profile,
                     email                   = excluded.email,
                     password_hash           = excluded.password_hash,
+                    consent_given           = excluded.consent_given,
                     updated_at              = excluded.updated_at
                 """,
                 (
@@ -368,6 +369,7 @@ class ProfileStore:
                     profile.problem_solving_profile,
                     profile.email,
                     profile.password_hash,
+                    bool(profile.consent_given),
                     profile.created_at,
                     profile.updated_at,
                 ),
@@ -424,6 +426,7 @@ class ProfileStore:
             problem_solving_profile=row.get("problem_solving_profile", ""),
             email=row.get("email", ""),
             password_hash=row.get("password_hash", ""),
+            consent_given=bool(row.get("consent_given", False)),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
