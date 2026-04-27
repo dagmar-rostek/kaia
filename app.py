@@ -30,17 +30,33 @@ DATA_DIR    = Path(os.environ.get("DATA_DIR", "data"))
 DB_PATH     = DATA_DIR / "kaia.db"
 CHROMA_PATH = DATA_DIR / "chroma"
 
-# ── Pitch-Text — HIER ANPASSEN ─────────────────────────────────────────────────
+# ── Pitch-Text ─────────────────────────────────────────────────────────────────
 _PITCH_DE = """
-KAIA ist ein prototypischer KI-Lernbegleiter, entwickelt im Rahmen meiner Masterarbeit an der SRH Berlin.
+Was wäre, wenn dein Lernbegleiter nicht nur weiß was du lernen willst – sondern auch wie du gerade wirklich drauf bist?
 
-*[Hier 2–3 Sätze zur Masterthesis einfügen — was wird untersucht, warum ist es relevant?]*
+KAIA ist kein Chatbot der Fragen beantwortet. KAIA ist ein empathischer KI-Agent der dich begleitet – durch Prüfungsstress, durch komplexe Themen, durch die Momente in denen du nicht weiterkommst und nicht genau weißt warum. KAIA gibt dir keine Antworten. KAIA stellt die richtigen Fragen – zur richtigen Zeit, im richtigen Ton.
+
+Mit jedem Gespräch kennt KAIA dich besser. Deine Stärken, deine Denkmuster, deine Momente wo du aufblühst und wo du blockierst. Nicht um dich zu kategorisieren – sondern um dich genau dort abzuholen wo du gerade stehst.
+
+---
+
+KAIA wurde entwickelt von **Dagmar Rostek** – Informatikerin, Wirtschaftspsychologin und Coach mit über 30 Jahren Erfahrung an der Schnittstelle von Menschen, Lernen und Technologie. KAIA entsteht im Rahmen ihrer Masterthesis im Studiengang *Data Science & Analytics* an der SRH Fernhochschule Riedlingen – als Forschungsprototyp der zeigen will was empathische KI im Lernkontext wirklich leisten kann.
+
+*Diese Anwendung ist Teil einer wissenschaftlichen Studie. Alle Gespräche werden ausschließlich als Transkript gespeichert – kein Audio, keine Weitergabe an Dritte. Deine Daten liegen auf europäischen Servern in Deutschland und werden DSGVO-konform verarbeitet. Deine Teilnahme ist freiwillig und jederzeit ohne Angabe von Gründen widerrufbar.*
 """
 
 _PITCH_EN = """
-KAIA is a prototype AI learning companion, developed as part of my Master's thesis at SRH Berlin.
+What if your learning companion didn't just know what you want to learn — but also how you're really doing right now?
 
-*[Add 2–3 sentences about the thesis here — what is being investigated, why does it matter?]*
+KAIA is not a chatbot that answers questions. KAIA is an empathic AI agent that accompanies you — through exam stress, complex topics, and those moments when you're stuck and don't quite know why. KAIA doesn't give you answers. KAIA asks the right questions — at the right time, in the right tone.
+
+With every conversation, KAIA gets to know you better. Your strengths, your thinking patterns, the moments when you thrive and when you get blocked. Not to categorise you — but to meet you exactly where you are right now.
+
+---
+
+KAIA was developed by **Dagmar Rostek** — computer scientist, business psychologist and coach with over 30 years of experience at the intersection of people, learning and technology. KAIA is being built as part of her Master's thesis in *Data Science & Analytics* at SRH Fernhochschule Riedlingen — as a research prototype exploring what empathic AI can truly achieve in a learning context.
+
+*This application is part of a scientific study. All conversations are stored exclusively as transcripts — no audio, no sharing with third parties. Your data is stored on European servers in Germany and processed in compliance with GDPR. Your participation is voluntary and can be withdrawn at any time without giving reasons.*
 """
 
 # ── Page config ────────────────────────────────────────────────────────────────
