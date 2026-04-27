@@ -240,6 +240,121 @@ After {name} has answered all 10 scenario questions, give the personal feedback.
 {language_instruction}"""
 
 
+# ── Post-Messung Prompt (nach ≥3 Sessions) ────────────────────────────────────
+
+def build_post_measurement_prompt(
+    name: str,
+    context: str,
+    session_count: int,
+    language: str = "de",
+) -> str:
+    """
+    Reflexionsgespräch zur Post-Messung nach ≥3 Sessions.
+
+    Gleiche 10 GSE-Szenarien wie das Onboarding — aber jetzt als Rückblick:
+    "Was hat sich seit dem Anfang verändert?"
+
+    Der Token [POST_COMPLETE] am Ende triggert die automatische Score-Berechnung
+    und speichert die Ergebnisse als timing="post" in der surveys-Tabelle.
+    """
+    language_instruction = (
+        "Respond always in German (Du-Form, warm and personal)."
+        if language == "de"
+        else "Respond always in English (second person, warm and personal)."
+    )
+
+    context_display = context if context else (
+        "allgemeines Lernen und persönliche Entwicklung" if language == "de"
+        else "general learning and personal development"
+    )
+
+    scenarios = _SCENARIO_QUESTIONS_DE if language == "de" else _SCENARIO_QUESTIONS_EN
+    scenarios_formatted = "\n".join(f"  Q{i+1}: {q}" for i, q in enumerate(scenarios))
+
+    if language == "de":
+        opening_instruction = (
+            f"Beginne mit einer warmen Begrüßung die GENAU folgendes kommuniziert "
+            f"(natürlich und persönlich formuliert, kein Copy-Paste):\n"
+            f"  1. {name} hat nun {session_count} Sessions mit KAIA hinter sich — das ist etwas wert\n"
+            f"  2. Heute geht es nicht um neuen Stoff, sondern um Rückschau: Was hat sich verändert?\n"
+            f"  3. Du wirst dieselben Themen erkunden wie am Anfang — aber aus einer anderen Perspektive: "
+            f"     Wie steht {name} heute dazu, verglichen mit früher?\n"
+            f"  4. Am Ende gibt es eine aktualisierte Auswertung die zeigt, wie sich das Profil entwickelt hat\n"
+            f"  5. Erste Frage: Wenn {name} an den Beginn zurückdenkt — was war damals "
+            f"     die größte Herausforderung bei '{context_display}'? Und wie ist das heute?"
+        )
+        completion_instruction = (
+            "Nachdem {name} alle 10 Reflexionsfragen beantwortet hat, "
+            "gib ein kurzes, wertschätzendes Abschluss-Feedback:\n"
+            "  - Was hast du in diesem Gespräch wahrgenommen?\n"
+            "  - Welche Entwicklung zeichnet sich ab?\n"
+            "  - Einladung weiterzumachen\n\n"
+            "Füge am absoluten Ende, auf einer neuen Zeile, genau dieses Token ein:\n"
+            "[POST_COMPLETE]"
+        ).format(name=name)
+    else:
+        opening_instruction = (
+            f"Begin with a warm greeting that communicates EXACTLY the following "
+            f"(phrase it naturally and personally, do not copy-paste):\n"
+            f"  1. {name} has now completed {session_count} sessions with KAIA — that deserves acknowledgement\n"
+            f"  2. Today is not about new content but about reflection: what has changed?\n"
+            f"  3. You will explore the same themes as at the beginning — but from a different angle: "
+            f"     how does {name} feel about them now, compared to before?\n"
+            f"  4. At the end there will be an updated profile showing how things have developed\n"
+            f"  5. First question: thinking back to the beginning — what was the biggest challenge "
+            f"     with '{context_display}'? And how is it today?"
+        )
+        completion_instruction = (
+            "After {name} has answered all 10 reflection questions, "
+            "give a brief, appreciative closing feedback:\n"
+            "  - What did you notice in this conversation?\n"
+            "  - What development is emerging?\n"
+            "  - Invitation to continue\n\n"
+            "At the very end, on a new line, add exactly this token:\n"
+            "[POST_COMPLETE]"
+        ).format(name=name)
+
+    return f"""# KAIA — Post-Messung nach {session_count} Sessions
+## Rolle in dieser Sitzung
+
+Du bist KAIA. Du kennst {name} bereits aus {session_count} gemeinsamen Sessions.
+Deine Aufgabe heute: eine strukturierte Reflexion die die GSE-Post-Messung operationalisiert.
+Du verwendest dieselben 10 Szenario-Fragen wie am Anfang — aber als Rückblick.
+
+---
+
+## ABLAUF (zwei Phasen)
+
+### PHASE 1 — Eröffnung + erste Reflexionsfrage
+
+{opening_instruction}
+
+### PHASE 2 — 10 Reflexionsfragen (eine pro Antwort)
+
+Arbeite ALLE 10 Fragen durch — in dieser Reihenfolge, eine pro Antwort.
+Formuliere jede als Rückblick: "Damals / am Anfang / verglichen mit früher..."
+Verbinde jede Frage mit '{context_display}'.
+Erkenne immer kurz an was {name} gesagt hat, bevor du die nächste Frage stellst.
+
+{scenarios_formatted}
+
+### ABSCHLUSS
+
+{completion_instruction}
+
+---
+
+## STRIKTE REGELN
+
+- GENAU EINE Frage pro Antwort — nie zwei, nie null.
+- 2–4 Sätze maximal vor der Frage.
+- Keine Bullet-Points, keine Listen, keine Überschriften — das ist ein Gespräch.
+- Alle 10 Fragen müssen gestellt und beantwortet sein bevor du den Abschluss gibst.
+- Kein "Jetzt stelle ich Frage 3 von 10" — alles fließt natürlich.
+
+{language_instruction}"""
+
+
 # ── M3: Neuroadaptive Modi ─────────────────────────────────────────────────────
 # Basiert auf der Polyvagal-Theorie (Porges, 2011) und ihrer operationalen
 # Übertragung auf Lernkontexte (Dana, 2018).

@@ -12,8 +12,8 @@ import streamlit as st
 from dotenv import load_dotenv
 from providers import get_provider, Message
 from core import (ProfileStore, MemoryStore, SessionAnalyzer, NeuroadaptiveMode,
-                  t, build_system_prompt, build_onboarding_prompt, OnboardingAnalyzer,
-                  SurveyStore)
+                  t, build_system_prompt, build_onboarding_prompt,
+                  build_post_measurement_prompt, OnboardingAnalyzer, SurveyStore)
 from voice import get_stt_provider, get_tts_provider, AVAILABLE_TTS_PROVIDERS
 
 load_dotenv()
@@ -85,12 +85,14 @@ if "survey_store"         not in st.session_state:
     st.session_state.survey_store = None
 if "onboarding_started"   not in st.session_state:
     st.session_state.onboarding_started = False
-if "authenticated"        not in st.session_state:
+if "authenticated"           not in st.session_state:
     st.session_state.authenticated = False
-if "context_step"         not in st.session_state:
+if "context_step"            not in st.session_state:
     st.session_state.context_step = False
-if "selected_provider"    not in st.session_state:
+if "selected_provider"       not in st.session_state:
     st.session_state.selected_provider = "claude"
+if "post_measurement_active" not in st.session_state:
+    st.session_state.post_measurement_active = False
 
 store  = st.session_state.store
 memory = st.session_state.memory
@@ -355,6 +357,68 @@ if not st.session_state.session:
 survey_store = st.session_state.survey_store
 profile      = st.session_state.profile
 
+# ── Post-Messung Banner (nach ≥3 Sessions, einmalig) ──────────────────────────
+if (
+    profile.onboarding_complete
+    and profile.session_count >= 3
+    and not st.session_state.post_measurement_active
+    and not survey_store.has_survey(profile.user_id, "gse", "post")
+):
+    _banner_label = (
+        f"✦ Deine Post-Messung ist bereit — du hast {profile.session_count} Sessions abgeschlossen."
+        if lang == "de" else
+        f"✦ Your post-measurement is ready — you've completed {profile.session_count} sessions."
+    )
+    _banner_info = (
+        "KAIA führt dich durch ein kurzes Reflexionsgespräch (ca. 15–20 Min.) "
+        "das zeigt, wie sich deine Selbstwirksamkeit seit dem Anfang entwickelt hat."
+        if lang == "de" else
+        "KAIA will guide you through a short reflection conversation (approx. 15–20 min.) "
+        "that shows how your self-efficacy has developed since the beginning."
+    )
+    with st.container(border=True):
+        st.markdown(f"**{_banner_label}**")
+        st.caption(_banner_info)
+        if st.button(
+            "Post-Messung jetzt starten →" if lang == "de" else "Start post-measurement now →",
+            type="primary", key="btn_post_start",
+        ):
+            st.session_state.post_measurement_active = True
+            st.session_state.messages = []
+            st.session_state.onboarding_started = False
+            st.rerun()
+
+# ── Post-Messung: KAIA startet automatisch — läuft bis [POST_COMPLETE] ─────────
+if (
+    st.session_state.post_measurement_active
+    and not st.session_state.onboarding_started
+    and not st.session_state.messages
+):
+    st.session_state.onboarding_started = True
+    _post_system = build_post_measurement_prompt(
+        name=profile.name,
+        context=profile.context or "",
+        session_count=profile.session_count,
+        language=lang,
+    )
+    _provider = st.session_state.provider
+    if _provider:
+        with st.spinner(t("llm_spinner", lang)):
+            try:
+                _trigger = [Message(role="user", content="__start__")]
+                _resp = _provider.complete(_trigger, _post_system)
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": _resp.content}
+                )
+                store.add_message(
+                    st.session_state.session, "assistant", _resp.content,
+                    tokens=_resp.tokens_used or 0,
+                    latency_ms=_resp.latency_ms or 0,
+                )
+            except Exception:
+                pass
+    st.rerun()
+
 # ── Onboarding: KAIA startet automatisch — läuft bis onboarding_complete ──────
 if (
     not profile.onboarding_complete
@@ -450,17 +514,25 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     history = [Message(role=m["role"], content=m["content"]) for m in st.session_state.messages]
 
-    is_onboarding = not profile.onboarding_complete
+    is_onboarding    = not profile.onboarding_complete
+    is_post          = st.session_state.post_measurement_active
 
-    # Onboarding: History beginnt mit KAIAs Eröffnungsnachricht (assistant).
-    # Die meisten LLM-APIs erfordern jedoch user als erste Rolle → Trigger vorne einsetzen.
-    if is_onboarding and history and history[0].role == "assistant":
+    # Onboarding/Post: History beginnt mit KAIAs Eröffnungsnachricht (assistant).
+    # Die meisten LLM-APIs erfordern user als erste Rolle → Trigger vorne einsetzen.
+    if (is_onboarding or is_post) and history and history[0].role == "assistant":
         history = [Message(role="user", content="__start__")] + history
 
     if is_onboarding:
         system_prompt = build_onboarding_prompt(
             name=profile.name,
             context=profile.context or "",
+            language=lang,
+        )
+    elif is_post:
+        system_prompt = build_post_measurement_prompt(
+            name=profile.name,
+            context=profile.context or "",
+            session_count=profile.session_count,
             language=lang,
         )
     else:
@@ -476,12 +548,20 @@ if user_input:
         try:
             response = provider.complete(history, system_prompt)
 
-            # [ONBOARDING_COMPLETE] erkennen und Analyse triggern
+            # Completion-Tokens erkennen
             onboarding_just_finished = (
                 is_onboarding and "[ONBOARDING_COMPLETE]" in response.content
             )
-            # Token aus der angezeigten Antwort entfernen
-            display_content = response.content.replace("[ONBOARDING_COMPLETE]", "").strip()
+            post_just_finished = (
+                is_post and "[POST_COMPLETE]" in response.content
+            )
+            # Tokens aus der angezeigten Antwort entfernen
+            display_content = (
+                response.content
+                .replace("[ONBOARDING_COMPLETE]", "")
+                .replace("[POST_COMPLETE]", "")
+                .strip()
+            )
 
             st.session_state.messages.append({
                 "role": "assistant",
@@ -493,6 +573,30 @@ if user_input:
                 tokens=response.tokens_used or 0,
                 latency_ms=response.latency_ms or 0,
             )
+
+            if post_just_finished:
+                with st.spinner(
+                    "KAIA wertet deine Post-Messung aus..." if lang == "de"
+                    else "KAIA is evaluating your post-measurement..."
+                ):
+                    _analyzer = OnboardingAnalyzer()
+                    _result   = _analyzer.analyze(
+                        messages=st.session_state.messages,
+                        provider=provider,
+                        language=lang,
+                    )
+                    survey_store.save_survey(
+                        profile.user_id, "gse", "post",
+                        {str(k): v for k, v in _result["gse_scores"].items()}
+                    )
+                st.session_state.post_measurement_active = False
+                st.session_state.onboarding_started     = False
+                st.session_state.messages               = []
+                st.success(
+                    "✦ Post-Messung abgeschlossen — deine Auswertung wurde aktualisiert."
+                    if lang == "de" else
+                    "✦ Post-measurement complete — your profile has been updated."
+                )
 
             if onboarding_just_finished:
                 with st.spinner("KAIA analysiert dein Profil..." if lang == "de" else "KAIA is analyzing your profile..."):
