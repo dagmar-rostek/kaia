@@ -133,7 +133,7 @@ TRANSLATIONS = {
         ],
 
         # Landing-Page / Login / Registrierung
-        "landing_subtitle":       "Prototyp · Masterarbeit Dagmar Rostek · SRH Berlin",
+        "landing_subtitle":       "Prototyp · Masterarbeit Dagmar Rostek · SRH Fernhochschule Riedlingen",
         "login_tab":              "Anmelden",
         "register_tab":           "Registrieren",
         "login_username":         "Benutzername",
@@ -285,7 +285,7 @@ TRANSLATIONS = {
         ],
 
         # Landing-Page / Login / Registration
-        "landing_subtitle":       "Prototype · Master's Thesis Dagmar Rostek · SRH Berlin",
+        "landing_subtitle":       "Prototype · Master's Thesis Dagmar Rostek · SRH Fernhochschule Riedlingen",
         "login_tab":              "Sign in",
         "register_tab":           "Register",
         "login_username":         "Username",
